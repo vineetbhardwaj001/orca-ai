@@ -16,7 +16,7 @@ All notable repository changes are recorded here. Versions remain pre-release un
 - Extended PostgreSQL integration tests for enrollment, credential hashing, early enrollment-token revocation, heartbeat, end-to-end echo execution, idempotency, tenant isolation, capability restrictions, lease recovery and worker revocation.
 - Updated worker protocol, database schema, migration/rollback, security, environment and operator setup documentation.
 
-Validation is pending for the v0.5 feature branch. Scope is limited to the echo job; no shell, arbitrary script, browser, external target API, repository or load execution is enabled. The v0.5 package version is 0.5.0-alpha.1. The pnpm lockfile remains outstanding, and CI retains non-frozen dependency installation until a genuine reviewed lockfile is available.
+Validation: source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed all-workspace typecheck, unit tests, PostgreSQL integration tests, build and the Playwright browser journey in CI run #89 (https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675755); CodeQL run #13 passed (https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675266). A docs-only follow-up records the run evidence and receives its own CI/CodeQL validation. Scope is limited to the echo job; no shell, arbitrary script, browser, external target API, repository or load execution is enabled. The v0.5 package version is 0.5.0-alpha.1. The pnpm lockfile remains outstanding, and CI retains non-frozen dependency installation until a genuine reviewed lockfile is available.
 
 ## 0.4.0-alpha.1 — 2026-11-04 (dashboard and application integration)
 

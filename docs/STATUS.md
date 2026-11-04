@@ -43,7 +43,7 @@ Target package version: 0.5.0-alpha.1
 
 ## v0.5.0-alpha.1 — Secure worker enrollment and job execution
 
-Implemented on `feat/secure-worker-enrollment-jobs-v0.5.0`; feature-branch validation is pending.
+Implemented on `feat/secure-worker-enrollment-jobs-v0.5.0`; source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed GitHub CI run #89 and CodeQL run #13.
 
 - Added migration 0003 for one-time enrollment token hashes, organization-bound worker identities, worker jobs and lease history. Added composite tenant-consistency foreign keys and unique organization-scoped idempotency keys.
 - Added owner/admin routes to issue one-use 15-minute enrollment tokens, revoke unclaimed tokens, list workers, revoke workers and enqueue echo jobs.
@@ -64,7 +64,9 @@ The worker can execute only the deterministic `echo` job. It does not run shell 
 ## Validation evidence
 
 - v0.4 validation remains available in the merged PR #6 history: CI #82 and CodeQL #10 both passed.
-- v0.5 TypeScript typecheck, unit tests, PostgreSQL integration tests, build and CodeQL are pending on this branch.
+- v0.5 source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed all-workspace TypeScript typecheck, unit tests, PostgreSQL integration tests (including worker lifecycle cases), build and the existing Playwright browser journey in CI run #89: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675755
+- CodeQL run #13 passed: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675266
+- A final documentation-only commit records this evidence and is rerun through CI/CodeQL before PR readiness.
 - The editing environment can update GitHub through the connected repository integration but does not execute the project locally. Any successful validation will be attributed to the exact GitHub Actions commit/run.
 
 ## Remaining platform work
