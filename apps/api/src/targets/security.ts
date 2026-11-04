@@ -198,7 +198,8 @@ export async function assertPinnedDnsResolution(
 }
 
 export function isPathWithinTargetScope(pathname: string, pathPrefixes: string[]): boolean {
-  if (!pathname.startsWith("/") || pathname.includes("\\") || /[%\u0000-\u001f\u007f]/.test(pathname)) return false;
+  if (!pathname.startsWith("/") || pathname.includes("\\") || pathname.includes("//") || /[%\\?#;\u0000-\u001f\u007f]/.test(pathname)) return false;
+  if (pathname.split("/").some((segment) => segment === "." || segment === "..")) return false;
   return pathPrefixes.some((prefix) => {
     if (prefix === "/") return true;
     return pathname === prefix || pathname.startsWith(prefix + "/");
