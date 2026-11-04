@@ -90,7 +90,7 @@ export function normalizeTargetInput(baseUrl: string, pathPrefixes: string[]): N
   }
 
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "").replace(/\.$/, "").toLowerCase();
-  if (!hostname || hostname.length > 253 || isIP(hostname) !== 0 || ipaddr.isValid(hostname)) {
+  if (!hostname || hostname.length > 240 || isIP(hostname) !== 0 || ipaddr.isValid(hostname)) {
     throw new TargetSecurityError("TARGET_HOST_FORBIDDEN", "IP-literal targets are not allowed; use a verified public DNS hostname.", 400);
   }
   if (!hostname.includes(".")) {
@@ -102,7 +102,7 @@ export function normalizeTargetInput(baseUrl: string, pathPrefixes: string[]): N
 
   const labels = hostname.split(".");
   if (labels.some((label) => label.length < 1 || label.length > 63 || !/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label))) {
-    throw new TargetSecurityError("TARGET_HOST_INVALID", "Target hostname is not a valid canonical DNS name.", 400);
+    throw new TargetSecurityError("TARGET_HOST_INVALID", "Target hostname is not a valid canonical DNS name or is too long for the verification label.", 400);
   }
 
   if (!Array.isArray(pathPrefixes) || pathPrefixes.length < 1 || pathPrefixes.length > 50) {
