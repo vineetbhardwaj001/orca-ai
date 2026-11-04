@@ -66,14 +66,17 @@ async function enrollWorker(apiBaseUrl: string, enrollmentToken: string, workerN
     throw new Error("The ORCA API returned an unreadable enrollment response.");
   }
   const parsed = enrollmentResponseSchema.safeParse(raw);
-  if (!parsed.success || !response.ok || !parsed.data.success || !parsed.data.data) {
+  if (!parsed.success || !response.ok || !parsed.data.success) {
     throw new Error(parsed.success ? parsed.data.error?.message ?? "Worker enrollment failed." : "The ORCA API enrollment response did not match its schema.");
   }
-  const payload = parsed.data;
+  const enrollment = parsed.data.data;
+  if (!enrollment) {
+    throw new Error("The ORCA API enrollment response is missing worker credentials.");
+  }
   return {
     apiBaseUrl,
-    workerId: payload.data.worker.id,
-    credential: payload.data.credential,
+    workerId: enrollment.worker.id,
+    credential: enrollment.credential,
     createdAt: new Date().toISOString(),
   };
 }

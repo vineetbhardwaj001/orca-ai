@@ -1,3 +1,5 @@
+import { z } from "zod";
+
 const WorkerJobClaimSchema = z.object({
   jobId: z.string().uuid(),
   jobType: z.literal("echo"),
