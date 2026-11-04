@@ -6,8 +6,10 @@ import { authRouter } from "./auth/routes.js";
 import { projectsRouter } from "./projects/routes.js";
 import { workerAdminRouter, workerEnrollmentRouter, workerProtocolRouter } from "./workers/routes.js";
 import { requestLoggingMiddleware } from "./request-logging.js";
+import { createTargetRouter } from "./targets/routes.js";
+import type { TargetDnsResolver } from "./targets/security.js";
 
-export function createApp() {
+export function createApp(options: { targetDnsResolver?: TargetDnsResolver } = {}) {
   const app = express();
   const origin = process.env.WEB_BASE_URL ?? "http://localhost:5173";
 
@@ -48,6 +50,7 @@ export function createApp() {
   app.use("/api/v1/worker-enrollments", workerEnrollmentRouter);
   app.use("/api/v1/workers", workerProtocolRouter);
   app.use("/api/v1/organizations", workerAdminRouter);
+  app.use("/api/v1/organizations", createTargetRouter(options.targetDnsResolver));
   app.use("/api/v1/organizations", projectsRouter);
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const requestId = typeof res.locals.requestId === "string" ? res.locals.requestId : undefined;
