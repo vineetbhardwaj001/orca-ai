@@ -2,7 +2,21 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**", ".next/**"] },
-    "dev": { "cache": false, "persistent": true },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "env": [
+        "NODE_ENV",
+        "API_PORT",
+        "WEB_PORT",
+        "API_BASE_URL",
+        "WEB_BASE_URL",
+        "DATABASE_URL",
+        "DATABASE_SSL",
+        "DB_POOL_MAX",
+        "WORKER_NAME"
+      ]
+    },
     "lint": { "dependsOn": ["^lint"] },
     "typecheck": { "dependsOn": ["^typecheck"] },
     "test": {

@@ -130,7 +130,7 @@ projectsRouter.post("/:organizationId/projects/:projectId/archive", async (req, 
           AND m.organization_id = p.organization_id AND m.user_id = $3
           AND m.status = 'active' AND m.role = ANY($4::varchar[])
           AND p.status = 'active'
-       RETURNING p.id, p.organization_id, p.name, p.status, p.updated_at`,
+       RETURNING p.id, p.organization_id, p.name, p.description, p.status, p.created_at, p.updated_at`,
       [projectId.data, organizationId.data, user.id, [...PROJECT_ARCHIVE_ROLES]],
     );
     if (!result.rows[0]) return res.status(404).json({ success: false, error: { code: "PROJECT_NOT_FOUND_OR_FORBIDDEN", message: "Project was not found or cannot be archived by this account." } });

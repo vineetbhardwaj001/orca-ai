@@ -22,7 +22,7 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16-alpine
@@ -54,7 +54,7 @@ jobs:
         with:
           node-version: 22
 
-      # A pnpm lockfile is still pending; switch to --frozen-lockfile once committed.
+      # A reviewed pnpm-lock.yaml is still pending; do not claim frozen installs yet.
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -66,3 +66,53 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Install Playwright browser
+        run: pnpm --filter @orca/dashboard exec playwright install --with-deps chromium
+
+      - name: Create isolated end-to-end database
+        env:
+          DB_ADMIN_URL: postgresql://orca:orca_test_password@localhost:5432/postgres
+          E2E_DATABASE_URL: postgresql://orca:orca_test_password@localhost:5432/orca_e2e
+        run: |
+          psql "$DB_ADMIN_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE orca_e2e;"
+          psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
+          psql "$E2E_DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_lifecycle.sql
+
+      - name: Start API and dashboard for browser tests
+        env:
+          DATABASE_URL: postgresql://orca:orca_test_password@localhost:5432/orca_e2e
+          WEB_BASE_URL: http://127.0.0.1:5173
+          NODE_ENV: test
+          API_PORT: "4000"
+        run: |
+          nohup pnpm --filter @orca/api dev > /tmp/orca-api.log 2>&1 &
+          nohup pnpm --filter @orca/dashboard dev -- --host 127.0.0.1 > /tmp/orca-dashboard.log 2>&1 &
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:4000/health > /dev/null && curl --fail --silent http://127.0.0.1:5173/ > /dev/null; then
+              echo "ORCA API and dashboard are ready."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Services did not become ready."
+          cat /tmp/orca-api.log
+          cat /tmp/orca-dashboard.log
+          exit 1
+
+      - name: Run dashboard browser journeys
+        run: pnpm test:e2e
+
+      - name: Upload Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: orca-playwright-diagnostics
+          path: |
+            apps/dashboard/test-results/
+            apps/dashboard/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,11 +1,22 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import { fileURLToPath } from "node:url";
 import { closePool } from "./db.js";
 import { createApp } from "./app.js";
+import { loadApiConfig } from "./config.js";
 
+// Resolve the repository-root .env file from the API entry point, regardless
+// of whether the command was launched by pnpm, Turbo or the compiled server.
+dotenv.config({ path: fileURLToPath(new URL("../../.env", import.meta.url)) });
+
+const config = loadApiConfig();
 const app = createApp();
-const port = Number(process.env.API_PORT ?? 4000);
-const server = app.listen(port, "0.0.0.0", () => {
-  console.log(`ORCA API listening on ${port}`);
+const server = app.listen(config.apiPort, "0.0.0.0", () => {
+  console.log(JSON.stringify({
+    level: "info",
+    event: "api_started",
+    port: config.apiPort,
+    environment: config.nodeEnv,
+  }));
 });
 
 let shuttingDown = false;
@@ -13,7 +24,7 @@ let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`ORCA API received ${signal}; shutting down gracefully`);
+  console.log(JSON.stringify({ level: "info", event: "api_shutdown", signal }));
   server.close(async (error) => {
     try {
       await closePool();
