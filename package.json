@@ -1,18 +1,23 @@
 {
   "name": "orca-ai",
-  "version": "0.4.0-alpha.1",
+  "version": "0.5.0-alpha.1",
   "private": true,
   "description": "ORCA — Omni-purpose Reliability, Coverage & Assurance. Universal Autonomous QA Lab.",
   "packageManager": "pnpm@9.15.4",
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --filter=@orca/api --filter=@orca/dashboard",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:integration": "pnpm --filter @orca/api test:integration",
     "test:e2e": "pnpm --filter @orca/dashboard test:e2e",
+    "worker:dev": "pnpm --filter @orca/worker dev",
+    "worker:build": "pnpm --filter @orca/worker build",
+    "worker:start": "pnpm --filter @orca/worker start",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

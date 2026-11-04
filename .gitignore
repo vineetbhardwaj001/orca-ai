@@ -22,3 +22,6 @@ artifacts/
 .evidence/
 tmp/
 temp/
+
+# Local worker credential files; never commit worker bearer tokens.
+.orca/
