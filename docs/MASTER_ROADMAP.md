@@ -97,7 +97,7 @@ Free hosted quotas are changeable and never guaranteed. Keep deterministic fallb
 ## 9. Delivery phases and exit criteria
 0. Product contract: threat model, statuses, acceptance tests, two unrelated sample apps.
 1. Foundation: monorepo, dashboard/API/worker shells, contracts, Docker Compose, CI. Clean install/build/typecheck/lint/test.
-2. Identity and tenancy: signup/login/logout/refresh/profile, orgs, roles, project CRUD, audit. Cross-tenant tests fail closed.
+2. Identity and tenancy: signup/login/logout, org memberships, role policy, project CRUD/archive and organization-scoped SQL access are implemented in the feature branch. Database-backed cross-tenant tests, frontend integration, account recovery, rate limits and audit are still outstanding. Do not mark the phase complete until those checks execute.
 3. Connectors: website, GitHub, OpenAPI/Postman, local worker enrollment, target allowlists.
 4. Discovery: Playwright crawler, routes/pages/controls/forms, API inventory, versioned Product Profile. Two unrelated products produce different profiles.
 5. Planning/personas: test plan, synthetic personas, deterministic/autonomous/both modes, approval.
