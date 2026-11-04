@@ -3,13 +3,26 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { getHealthPayload } from "./health.js";
-const app=express();
-const port=Number(process.env.API_PORT??4000);
-const origin=process.env.WEB_BASE_URL??"http://localhost:5173";
+import { authRouter } from "./auth/routes.js";
+
+const app = express();
+const port = Number(process.env.API_PORT ?? 4000);
+const origin = process.env.WEB_BASE_URL ?? "http://localhost:5173";
+
 app.disable("x-powered-by");
 app.use(helmet());
-app.use(cors({origin,credentials:true}));
-app.use(express.json({limit:"1mb"}));
-app.get("/health",(_req,res)=>res.status(200).json(getHealthPayload()));
-app.get("/api/v1",(_req,res)=>res.status(200).json({success:true,data:{name:"ORCA API",version:"v1",stage:"foundation"}}));
-app.listen(port,"0.0.0.0",()=>console.log("ORCA API listening on "+port));
+app.use(cors({ origin, credentials: true }));
+app.use(express.json({ limit: "1mb" }));
+app.get("/health", (_req, res) => res.status(200).json(getHealthPayload()));
+app.get("/api/v1", (_req, res) => res.status(200).json({
+  success: true,
+  data: { name: "ORCA API", version: "v1", stage: "identity-tenancy" },
+}));
+app.use("/api/v1/auth", authRouter);
+app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Keep database and internal details out of client responses.
+  console.error("Unhandled API error", error);
+  return res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } });
+});
+
+app.listen(port, "0.0.0.0", () => console.log(`ORCA API listening on ${port}`));
