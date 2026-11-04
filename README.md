@@ -5,8 +5,8 @@
 *Universal Autonomous QA Lab*
 
 [![ORCA CI](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.5.0--alpha.1-orange)](CHANGELOG.md)
-[![Stage](https://img.shields.io/badge/stage-worker--control-plane-blue)](docs/STATUS.md)
+[![Version](https://img.shields.io/badge/version-0.6.0--alpha.1-orange)](CHANGELOG.md)
+[![Stage](https://img.shields.io/badge/stage-target--authorization-blue)](docs/STATUS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Test software like real users. Verify outcomes like an engineer.**
@@ -14,7 +14,7 @@
 
 ORCA is being built as a universal quality-assurance platform for authorized websites, web applications, APIs, real-time systems and source-code repositories. It combines deterministic test engines with AI-assisted discovery, planning, exploration, bug investigation and evidence review.
 
-> **Stage: secure worker control plane.** v0.5 adds one-time organization-authorized worker enrollment, hashed 30-day worker credentials, heartbeat, capability-gated PostgreSQL job claims, 60-second leases, revocation and persisted result acceptance. The only executable job is a bounded `echo` round trip; browser/API/realtime/load engines and production operations remain under development.
+> **Stage: secure target authorization boundary.** v0.6 adds owner/admin-controlled, project-scoped target registration, explicit time-bounded authorization attestation, one-time DNS TXT ownership proof, public A/AAAA validation, path allowlists, DNS freshness snapshots and revocation. Target execution remains deliberately disabled; v0.5's only executable worker job is still the bounded `echo` round trip.
 
 ## Project status
 
@@ -31,6 +31,7 @@ ORCA is being built as a universal quality-assurance platform for authorized web
 | Model gateway | Provider abstraction; not wired into product workflows |
 | Worker control plane | One-time enrollment, bearer auth, heartbeat, revocation and job leases |
 | Worker execution | Deterministic `worker.echo` job only; no shell or target execution |
+| Target authorization | Owner/admin target registry, DNS proof, public-address checks, path scope and revocation; execution disabled |
 | Browser/API/realtime/performance engines | Planned; not implemented |
 | Production operations and hardening | Not ready |
 
@@ -108,6 +109,7 @@ Apply migrations and start the workspace:
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_lifecycle.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0003_secure_workers_and_jobs.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0004_secure_target_authorization.sql
 pnpm dev
 ~~~
 
@@ -125,7 +127,7 @@ Unit tests and the PostgreSQL-backed API integration suite:
 pnpm test
 ~~~
 
-The integration suite requires a disposable database named `orca_test`. It applies all three migrations and refuses destructive setup against any other database name; CI fails rather than silently skipping it.
+The integration suite requires a disposable database named `orca_test`. It applies all four migrations and refuses destructive setup against any other database name; CI fails rather than silently skipping it.
 
 ~~~bash
 # Example disposable local database; never point this at development or production data.
@@ -170,6 +172,10 @@ Base prefix: /api/v1
 | POST | /workers/:workerId/heartbeat | Authenticated worker heartbeat |
 | POST | /workers/:workerId/jobs/claim | Capability-gated job claim with a lease |
 | POST | /workers/:workerId/jobs/:jobId/complete | Complete a job using the active lease token |
+| POST | /organizations/:organizationId/targets | Owner/admin registers an authorized project target and receives a one-time DNS TXT challenge |
+| GET | /organizations/:organizationId/targets | Owner/admin lists up to 200 organization targets |
+| POST | /organizations/:organizationId/targets/:targetId/verify | Verifies DNS proof and blocks non-public DNS answers |
+| POST | /organizations/:organizationId/targets/:targetId/revoke | Revokes a pending or active target |
 
 Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. The dashboard uses the same endpoints; UI visibility is not a substitute for API authorization. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
 
@@ -210,7 +216,7 @@ Create a short-lived feature branch from main, keep changes focused, include tes
 
 ## Security and responsible testing
 
-Only test systems for which you have explicit authorization. Production load, destructive flows, account changes and external side effects require approval of target, scope, limits and execution window. Worker API routes now have route-level per-IP rate limits. The default in-memory limiter is process-local and does not coordinate multiple API replicas; configure a shared store before horizontal scaling. Broader authentication/project API limits, worker authorization hardening, SSRF protections, kill switch, audit trail and full production controls are still being built. For vulnerability reports, follow [SECURITY.md](.github/SECURITY.md).
+Only test systems for which you have explicit authorization. Production load, destructive flows, account changes and external side effects require approval of target, scope, limits and execution window. Worker API routes now have route-level per-IP rate limits. The default in-memory limiter is process-local and does not coordinate multiple API replicas; configure a shared store before horizontal scaling. Target onboarding now validates authorization attestations, strict URL/path scopes, DNS TXT ownership and globally routable DNS answers. This is not target execution: workers still cannot make website/API requests. Per-connection DNS pinning, redirect-hop enforcement in a worker transport, browser/API execution, local-target exception policy, kill switch, audit trail and full production controls remain outstanding. For vulnerability reports, follow [SECURITY.md](.github/SECURITY.md).
 
 ## Documentation
 
