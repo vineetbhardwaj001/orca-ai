@@ -103,7 +103,7 @@ Free hosted quotas are changeable and never guaranteed. Keep deterministic fallb
 5. Planning/personas: test plan, synthetic personas, deterministic/autonomous/both modes, approval.
 6. Functional engine: auth/profile, CRUD, forms, navigation, buttons, upload, responsive, sessions; traces/screenshots.
 7. API + real-time: contract tests, WebSocket/Socket.IO events, end-to-end feedback latency and seeded defect reproduction.
-8. Performance: k6 ramp profiles through 100 VUs, percentiles, thresholds, stop control.
+8. Performance: k6 ramp profiles starting at 100 VUs and scaling beyond 100 when worker capacity and target authorization allow, percentiles, thresholds, stop control.
 9. Security/accessibility/resilience: tenant isolation, redaction, axe, recovery/retry/cancel.
 10. OpenClaw + model evaluation: provider abstraction, restricted agent tools, deterministic fallback.
 11. Review/evidence/reports: bug reproduction, independent review, HTML/PDF/JSON.
