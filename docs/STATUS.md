@@ -2,7 +2,8 @@
 
 Last verified: 2026-11-04  
 Target version on this feature branch: 0.4.0-alpha.1  
-Current main baseline at branch creation: e494cf76de961246be267522bb84a6f92ee2144a
+Current main baseline at branch creation: e494cf76de961246be267522bb84a6f92ee2144a  
+Feature branch HEAD: ed792425950fbf877feca347217f04c596853ceb
 
 ## GitHub state at branch creation
 
@@ -13,8 +14,6 @@ Current main baseline at branch creation: e494cf76de961246be267522bb84a6f92ee214
 - Main CodeQL run #5 succeeded: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41849784579
 - Main branch protection was not enabled at the last audit.
 - No production deployment or full ORCA product execution is claimed.
-
-This file is updated in the v0.4.0-alpha.1 feature branch. Its checks must pass before the milestone is considered complete.
 
 ## Implemented and merged before this phase
 
@@ -46,32 +45,40 @@ This file is updated in the v0.4.0-alpha.1 feature branch. Its checks must pass 
 
 ## v0.4.0-alpha.1 — Dashboard and application integration
 
-Implemented on feat/dashboard-app-integration-v0.4.0-alpha.1; feature-branch CI/CodeQL validation is pending.
+Implemented on feat/dashboard-app-integration-v0.4.0-alpha.1. Validation passed on feature branch HEAD ed792425950fbf877feca347217f04c596853ceb.
 
-- Added Zod-validated runtime config for NODE_ENV, API_PORT, WEB_BASE_URL, DATABASE_URL, DATABASE_SSL and DB_POOL_MAX. The production API entry point now fails fast on invalid/missing configuration.
+- Added Zod-validated runtime config for NODE_ENV, API_PORT, WEB_BASE_URL, DATABASE_URL, DATABASE_SSL and DB_POOL_MAX. Production requires HTTPS dashboard origin and verified database TLS.
 - Added generated request IDs, X-Request-Id, structured request logs and metadata-only logging. Bodies, query strings, cookies and authorization headers are not logged.
 - Added a typed dashboard API client with credentials include, abort-signal support, consistent typed errors and Zod response parsing.
 - Connected signup, login, current-session restoration and logout to the existing session API.
 - Connected org memberships and tenant-scoped project list/create/read/update/archive flows.
 - Added role-aware UI: owner/admin/member can create or update; owner/admin can archive. The API remains the enforcement boundary.
 - Added same-origin Vite proxy routes for /api and /health.
-- Added Playwright coverage for the registration → project create/read/update/archive → logout/login journey and CI provisioning for a separate orca_e2e database.
+- Added Playwright coverage for registration → project create/read/update/archive → logout/login. CI provisions a separate orca_e2e database and runs the real browser journey.
 - Added API config, request logging and dashboard API client unit tests.
+- Separated Vitest unit tests from Playwright browser specs.
+- Made the archive endpoint return the complete project DTO expected by the dashboard contract.
 - Corrected prior PR #5 status and added migration/rollback notes.
 
 ### Remaining item in v0.4
 
-- pnpm-lock.yaml remains absent. The environment used to author this branch could not resolve registry access to generate a real lockfile; it is not safe to fabricate lockfile metadata. CI still uses pnpm install --no-frozen-lockfile. Generate and review the lockfile in a network-enabled environment before switching to --frozen-lockfile.
+- pnpm-lock.yaml remains absent. No lockfile was fabricated. CI still uses pnpm install --no-frozen-lockfile. Generate and review the lockfile in a network-enabled environment before switching to frozen installs.
 
 ## Validation evidence
 
-- Previous milestone evidence is recorded above and linked to the actual GitHub Actions runs.
-- v0.4 feature-branch validation is pending; do not mark this milestone complete until typecheck, unit tests, PostgreSQL integration tests, build, Playwright browser journey and CodeQL all pass.
-- The editing environment could access GitHub repository APIs but could not resolve github.com from a local shell, so no local install/build/test result is claimed.
+- Feature branch CI run #81 passed: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874267
+  - pnpm install
+  - TypeScript typecheck across all five workspace packages
+  - Unit tests and PostgreSQL-backed API integration tests
+  - Build
+  - Chromium install and isolated PostgreSQL end-to-end database setup
+  - API/dashboard startup and Playwright registration/project lifecycle/logout/login journey
+- Feature branch CodeQL run #9 passed: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874430
+- The editing environment could access GitHub repository APIs but could not resolve github.com from a local shell; no local install/build/test result is claimed. The validation evidence above is from GitHub Actions.
 
 ## Current capability boundaries
 
-### Available after v0.4 branch validation
+### Available after v0.4 CI validation
 - Create accounts and workspaces, sign in/out and restore a session through the real API.
 - Load the authenticated user's active organization memberships.
 - Create, list, read, update and archive organization-scoped projects.

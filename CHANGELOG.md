@@ -4,7 +4,7 @@ All notable repository changes are recorded here. Versions remain pre-release un
 
 ## 0.4.0-alpha.1 — 2026-11-04 (dashboard and application integration)
 
-- Added Zod-validated API runtime configuration with fail-fast startup for missing or invalid database/origin/port/pool settings.
+- Added Zod-validated API runtime configuration with fail-fast startup for missing or invalid database/origin/port/pool settings; production requires HTTPS and verified database TLS.
 - Added request IDs, X-Request-Id response headers and structured request logs containing metadata only; request bodies, query strings, cookies and authorization headers are intentionally excluded.
 - Added a typed dashboard API client with cookie credentials, cancellation, consistent API errors and Zod response validation.
 - Connected dashboard registration, login, session restoration and logout to the existing API.
@@ -12,10 +12,13 @@ All notable repository changes are recorded here. Versions remain pre-release un
 - Added role-aware project controls while retaining server-side authorization as the security boundary.
 - Added Vite same-origin API proxying for local development.
 - Added Playwright end-to-end coverage for registration, project lifecycle, logout and login; CI provisions an isolated PostgreSQL database and runs the browser journey.
-- Added environment validation, request logging and dashboard API client unit tests.
+- Added environment validation, request logging and dashboard API client unit tests; separated Vitest and Playwright scopes.
+- Fixed the archive response DTO to return all fields expected by the shared project contract.
 - Corrected the engineering status record for merged PR #5 and added migration/rollback guidance.
 
-Validation is pending the v0.4 feature-branch CI and CodeQL runs. The pnpm lockfile remains outstanding because no trustworthy generated lockfile was available in the editing environment; installs therefore remain non-frozen. This milestone does not implement browser/API/realtime/load execution engines, worker enrollment or production readiness.
+Validation: feature-branch CI run #81 passed installation, all-workspace typecheck, unit + PostgreSQL integration tests, build and the Playwright browser journey. CodeQL run #9 passed. Links: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874267 and https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874430.
+
+The pnpm lockfile remains outstanding because no trustworthy generated lockfile was available in the editing environment; installs therefore remain non-frozen. This milestone does not implement browser/API/realtime/load execution engines, worker enrollment or production readiness.
 
 ## 0.3.0-alpha.1 — 2026-11-04 (control-plane verification)
 
@@ -33,7 +36,7 @@ Validation: PR #5 CI run #71 passed install, typecheck, unit + PostgreSQL integr
 ## 0.2.0-alpha.1 — 2026-11-04 (repository-readiness milestone)
 
 - Reworked README with project overview, architecture, maturity status, quick start and API inventory.
-- Added MIT license and contributor/security/PR guidance.
+- Added MIT license and contributor/security/PR templates.
 - Added MVP, prototype and production env templates.
 - Documented repository structure, scaling, code-quality rules and release-readiness documentation.
 - Added GitHub workflow guide and CodeQL analysis.
