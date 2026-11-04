@@ -110,3 +110,29 @@ All worker-management routes are under `/api/v1`. Owner/admin-only management ro
 | POST | `/workers/:workerId/jobs/:jobId/complete` | Worker + active lease tokens | Validate and persist the echo result |
 
 v0.5 executes only `worker.echo`. It does not offer shell execution, arbitrary scripts, browser automation or external target testing. See [worker protocol](WORKER_PROTOCOL.md) for payloads, lifecycle, lease recovery and setup instructions.
+
+
+## Target authorization API (v0.6)
+
+All target routes are organization-scoped and require an authenticated active organization owner/admin session. The registered target must reference an active project in the same organization.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/organizations/:organizationId/targets` | Create a pending target with explicit authorization attestation and a one-time DNS TXT challenge |
+| GET | `/organizations/:organizationId/targets` | List up to 200 organization targets without challenge hashes |
+| POST | `/organizations/:organizationId/targets/:targetId/verify` | Verify the DNS TXT proof and reject any private/reserved A/AAAA answer |
+| POST | `/organizations/:organizationId/targets/:targetId/revoke` | Revoke a pending or active target |
+
+Create body:
+
+```json
+{
+  "projectId": "PROJECT_UUID",
+  "baseUrl": "https://app.example.com",
+  "pathPrefixes": ["/", "/api/v1"],
+  "authorizationConfirmed": true,
+  "authorizationExpiresAt": "2027-01-01T00:00:00.000Z"
+}
+```
+
+Only a DNS-verified target with an unexpired authorization window can become `active`. The API returns a one-time TXT record name/value at creation; ORCA stores only the challenge hash. A verification snapshot is valid for 24 hours and records the public DNS address set. Target execution remains disabled in v0.6; every response that creates, lists or verifies a target includes `executionEnabled: false`. Future executors must re-resolve, compare the full address set and pin the approved address for each connection, and must revalidate every redirect hop.
