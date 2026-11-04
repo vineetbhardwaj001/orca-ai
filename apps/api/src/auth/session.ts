@@ -5,6 +5,17 @@ import { getPool } from "../db.js";
 const COOKIE_NAME = "orca_session";
 const SESSION_DAYS = 7;
 
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.cookie;
+  if (!header) return undefined;
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator < 0 || part.slice(0, separator).trim() !== name) continue;
+    try { return decodeURIComponent(part.slice(separator + 1).trim()); } catch { return undefined; }
+  }
+  return undefined;
+}
+
 export function sessionCookieOptions() {
   return {
     httpOnly: true,
@@ -27,7 +38,7 @@ export async function createSession(userId: string, res: Response): Promise<void
 }
 
 export async function getSessionUser(req: Request): Promise<{ id: string; email: string; name: string } | null> {
-  const token = req.cookies?.[COOKIE_NAME];
+  const token = readCookie(req, COOKIE_NAME);
   if (typeof token !== "string" || token.length < 32 || token.length > 128) return null;
   const tokenHash = createHash("sha256").update(token).digest("hex");
   const result = await getPool().query<{ id: string; email: string; name: string }>(
@@ -42,7 +53,7 @@ export async function getSessionUser(req: Request): Promise<{ id: string; email:
 }
 
 export async function revokeSession(req: Request, res: Response): Promise<void> {
-  const token = req.cookies?.[COOKIE_NAME];
+  const token = readCookie(req, COOKIE_NAME);
   if (typeof token === "string" && token.length >= 32 && token.length <= 128) {
     const tokenHash = createHash("sha256").update(token).digest("hex");
     await getPool().query(
@@ -50,5 +61,10 @@ export async function revokeSession(req: Request, res: Response): Promise<void> 
       [tokenHash],
     );
   }
-  res.clearCookie(COOKIE_NAME, { ...sessionCookieOptions(), maxAge: undefined });
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+  });
 }
