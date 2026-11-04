@@ -13,6 +13,17 @@ app.disable("x-powered-by");
 app.use(helmet());
 app.use(cors({ origin, credentials: true }));
 app.use(express.json({ limit: "1mb" }));
+
+// Cookie-authenticated browser mutations must originate from the configured UI.
+app.use("/api/v1/auth", (req, res, next) => {
+  if (!["POST", "PUT", "PATCH", "DELETE"].includes(req.method)) return next();
+  const requestOrigin = req.get("origin");
+  if (requestOrigin && requestOrigin !== origin) {
+    return res.status(403).json({ success: false, error: { code: "ORIGIN_NOT_ALLOWED", message: "Request origin is not allowed." } });
+  }
+  return next();
+});
+
 app.get("/health", (_req, res) => res.status(200).json(getHealthPayload()));
 app.get("/api/v1", (_req, res) => res.status(200).json({
   success: true,
@@ -20,8 +31,7 @@ app.get("/api/v1", (_req, res) => res.status(200).json({
 }));
 app.use("/api/v1/auth", authRouter);
 app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  // Keep database and internal details out of client responses.
-  console.error("Unhandled API error", error);
+  console.error("Unhandled API error", error instanceof Error ? error.name : "UnknownError");
   return res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "An unexpected error occurred." } });
 });
 
