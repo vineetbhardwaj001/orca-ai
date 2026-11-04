@@ -17,6 +17,16 @@ Sources:
 - https://huggingface.co/openai/gpt-oss-20b
 - https://huggingface.co/mistralai/Devstral-Small-2-24B-Instruct-2512
 
+## Local Ollama smoke test
+
+Install Ollama, then start with the smallest model and check memory use:
+
+~~~powershell
+ollama run qwen3.5:0.8b
+~~~
+
+For a stronger but heavier local experiment, use `ollama run qwen3.5:2b`. The Ollama library lists approximately 1.2–1.3 GB for 0.8B and 2.7–3.1 GB for 2B; 4B Q4 is around 3.3 GB. Actual runtime memory is higher than the model file size. See https://ollama.com/library/qwen3.5.
+
 ## Experiment plan
 1. Define ModelProvider methods: generateStructured, generateText, healthCheck.
 2. Implement local Ollama-compatible provider and remote OpenAI-compatible provider.
