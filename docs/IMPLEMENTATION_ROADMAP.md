@@ -2,14 +2,27 @@
 
 Every milestone requires executable tests and an evidence-based completion report.
 
-## M1 — Foundation
-- pnpm monorepo and TypeScript configuration.
-- Dashboard, API, and worker application shells.
-- PostgreSQL migrations and Redis queue.
-- Authentication, organizations, project CRUD, and tenant isolation.
-- Local worker enrollment, authenticated outbound connection, heartbeat, and a harmless echo job.
+## M1 — Foundation (in progress)
 
-**Exit criteria:** create a project, enroll a local worker, dispatch an echo job, and receive a persisted result.
+**Implemented on `feat/qa-lab-foundation`:**
+- pnpm monorepo, dashboard/API/worker shells and shared execution contracts.
+- PostgreSQL identity schema for users, organizations, memberships, projects and sessions.
+- Registration, login, logout and current-user endpoints.
+- Scrypt password hashing and opaque, hashed server-side session tokens.
+- Organization-scoped project list/create/read/update/archive endpoints.
+- Backend role policy: Owner/Admin/Member can create and update; Owner/Admin can archive; all active roles can read.
+- Project SQL statements scope by organization and active membership; create/update/archive enforce roles in the SQL operation.
+- Unit tests for password hashing and project role policy.
+
+**Not yet verified / outstanding:**
+- CI run for the latest feature-branch commit.
+- Database-backed integration tests for cross-tenant isolation and every project endpoint.
+- Full frontend signup/login/project workflow.
+- Email verification, password reset, MFA, rate limiting, session rotation and complete CSRF protection.
+- Organization membership management and invitations.
+- Authenticated local worker enrollment, heartbeat, revocation and echo job.
+
+**M1 exit criteria:** all above backend and frontend capabilities are integrated, database-backed authorization tests pass, and a local worker completes a persisted echo job. M1 is not complete yet.
 
 ## M2 — Product connectors
 - Website target registration and allowlists.

@@ -31,7 +31,34 @@ docker compose up -d
 pnpm dev
 ```
 
-The initial dashboard, API health service, worker bootstrap and shared execution contracts are foundation scaffolds. Authentication, database migrations, worker enrollment and actual test execution are later milestones. Do not treat a scaffold screen as a completed feature.
+The repository now includes an initial PostgreSQL-backed identity layer (register/login/logout/current-user) and organization-scoped project APIs with role checks. These are implementation foundations, not yet a production authentication release: rate limiting, email verification, password reset, MFA, full CSRF strategy, and database-backed integration tests remain outstanding. Worker enrollment and actual product test execution are not implemented yet. Do not treat a scaffold screen as a completed feature.
+
+## API quick start
+
+Apply the migrations in order after starting PostgreSQL:
+
+```bash
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_lifecycle.sql
+pnpm --filter @orca/api dev
+```
+
+Identity routes:
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+
+Organization project routes:
+- `GET /api/v1/organizations/:organizationId/projects`
+- `POST /api/v1/organizations/:organizationId/projects`
+- `GET /api/v1/organizations/:organizationId/projects/:projectId`
+- `PATCH /api/v1/organizations/:organizationId/projects/:projectId`
+- `POST /api/v1/organizations/:organizationId/projects/:projectId/archive`
+
+## Current status
+
+See [engineering status](docs/STATUS.md) for implemented capabilities, verification gaps, and next actions. See [project API and RBAC](docs/PROJECTS_RBAC.md) for organization-scoped project endpoints.
 
 ## Documentation
 - [Master roadmap](docs/MASTER_ROADMAP.md)
