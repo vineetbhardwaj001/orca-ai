@@ -39,6 +39,7 @@ jobs:
           --health-retries 15
     env:
       TEST_DATABASE_URL: postgresql://orca:orca_test_password@localhost:5432/orca_test
+      REQUIRE_DB_INTEGRATION: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

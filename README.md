@@ -119,7 +119,7 @@ Unit tests:
 pnpm test
 ~~~
 
-PostgreSQL integration tests use a disposable database named orca_test only. The test suite refuses destructive setup against another database name.
+PostgreSQL integration tests require a disposable database named orca_test. The suite refuses destructive setup against any other database name and CI is configured to fail rather than silently skip the suite.
 
 ~~~bash
 # Start a separate disposable test database. Do not use development or production data.
@@ -127,6 +127,7 @@ docker run --rm --name orca-test-db -e POSTGRES_USER=orca -e POSTGRES_PASSWORD=o
 
 # PowerShell
 $env:TEST_DATABASE_URL="postgresql://orca:orca_test_password@localhost:5433/orca_test"
+$env:REQUIRE_DB_INTEGRATION="true"
 pnpm test:integration
 ~~~
 

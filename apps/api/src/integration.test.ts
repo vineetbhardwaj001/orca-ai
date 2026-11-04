@@ -9,7 +9,12 @@ import { closePool } from "./db.js";
 
 const { Pool } = pg;
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
+const requireDbIntegration = process.env.REQUIRE_DB_INTEGRATION === "true";
 const testOrigin = "http://localhost:5173";
+
+if (requireDbIntegration && !testDatabaseUrl) {
+  throw new Error("REQUIRE_DB_INTEGRATION=true but TEST_DATABASE_URL is missing; refusing to silently skip the PostgreSQL integration suite.");
+}
 
 // Refuse destructive setup against any database not explicitly named orca_test.
 if (testDatabaseUrl) {
@@ -36,9 +41,14 @@ type ApiPayload = {
 };
 
 describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
-  let database: pg.Pool;
-  let server: Server;
-  let baseUrl: string;
+  let database: pg.Pool | undefined;
+  let server: Server | undefined;
+  let baseUrl = "";
+
+  function getTestPool(): pg.Pool {
+    if (!database) throw new Error("PostgreSQL integration test pool is not initialized.");
+    return database;
+  }
 
   async function api(path: string, init: RequestInit = {}, cookie?: string): Promise<Response> {
     const headers = new Headers(init.headers);
@@ -74,7 +84,7 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
   }
 
   async function addMembership(userId: string, organizationId: string, role: "admin" | "member" | "viewer") {
-    await database.query(
+    await getTestPool().query(
       "INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, $3)",
       [organizationId, userId, role],
     );
@@ -89,7 +99,7 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
       new URL("../migrations/0002_project_lifecycle.sql", import.meta.url),
     ];
     for (const migration of migrations) {
-      await database.query(await readFile(migration, "utf8"));
+      await getTestPool().query(await readFile(migration, "utf8"));
     }
 
     server = createApp().listen(0, "127.0.0.1");
@@ -99,13 +109,13 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
   });
 
   beforeEach(async () => {
-    await database.query("TRUNCATE auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
+    await getTestPool().query("TRUNCATE auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
   });
 
   afterAll(async () => {
     if (server) {
       await new Promise<void>((resolve, reject) => {
-        server.close((error) => error ? reject(error) : resolve());
+        server!.close((error) => error ? reject(error) : resolve());
       });
     }
     await closePool();
@@ -125,7 +135,6 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
 
   it("rejects duplicate emails case-insensitively and rejects bad credentials", async () => {
     await register("duplicate@example.test");
-
     const duplicate = await api("/api/v1/auth/register", {
       method: "POST",
       body: JSON.stringify({ name: "Duplicate User", email: "DUPLICATE@example.test", password: "correct-horse-battery", organizationName: "Another Workspace" }),
@@ -142,12 +151,10 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
   it("requires authentication and revokes a session on logout", async () => {
     const anonymous = await api("/api/v1/organizations/00000000-0000-4000-8000-000000000001/projects");
     expect(anonymous.status).toBe(401);
-
     const user = await register("logout@example.test");
     const logout = await api("/api/v1/auth/logout", { method: "POST" }, user.cookie);
     expect(logout.status).toBe(200);
-    const me = await api("/api/v1/auth/me", {}, user.cookie);
-    expect(me.status).toBe(401);
+    expect((await api("/api/v1/auth/me", {}, user.cookie)).status).toBe(401);
   });
 
   it("prevents cross-tenant list, read, update and archive access", async () => {
