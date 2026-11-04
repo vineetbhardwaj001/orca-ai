@@ -62,6 +62,9 @@ describe("target scope normalization", () => {
     expect(isPathWithinTargetScope("/api", ["/api"])).toBe(true);
     expect(isPathWithinTargetScope("/apiculture", ["/api"])).toBe(false);
     expect(isPathWithinTargetScope("/api/%2e%2e/private", ["/api"])).toBe(false);
+    expect(isPathWithinTargetScope("/api//private", ["/api"])).toBe(false);
+    expect(isPathWithinTargetScope("/api/../private", ["/api"])).toBe(false);
+    expect(isPathWithinTargetScope("//api/private", ["/api"])).toBe(false);
   });
 });
 
