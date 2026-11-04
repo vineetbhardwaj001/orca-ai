@@ -56,6 +56,10 @@ Organization project routes:
 - `PATCH /api/v1/organizations/:organizationId/projects/:projectId`
 - `POST /api/v1/organizations/:organizationId/projects/:projectId/archive`
 
+## Current status
+
+See [engineering status](docs/STATUS.md) for implemented capabilities, verification gaps, and next actions. See [project API and RBAC](docs/PROJECTS_RBAC.md) for organization-scoped project endpoints.
+
 ## Documentation
 - [Master roadmap](docs/MASTER_ROADMAP.md)
 - [Model evaluation strategy](docs/MODEL_STRATEGY.md)
