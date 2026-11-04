@@ -17,6 +17,14 @@ Treat submitted URLs, websites, repositories, source files, API responses, docum
 - Revocation invalidates the worker immediately, revokes active leases and requeues jobs only while retry attempts remain.
 - The only executable worker job in v0.5 is `echo`. No shell, arbitrary script, browser, external HTTP or repository execution is enabled.
 
+## API abuse controls
+
+- Every worker API route has an explicit express-rate-limit middleware before its database or authorization handler.
+- Enrollment issue/claim and privileged mutations use tighter per-IP budgets; worker heartbeat and job polling have higher budgets to support normal worker cadence.
+- Rate-limit responses use HTTP 429, a stable JSON error code and standard RateLimit response headers.
+- The default limiter store is process-local memory. It protects a single API process, but does not coordinate quotas across multiple replicas or survive restarts. Configure a shared store (for example, Redis) before horizontally scaling the API.
+- The limiter keys off Express's client IP. When deploying behind a reverse proxy, configure only the exact trusted proxy hop count for that deployment; do not blindly enable trust for arbitrary forwarded headers.
+
 ## Target authorization
 
 - Require the project owner to confirm authority to test each target.
