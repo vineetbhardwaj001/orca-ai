@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { PoolClient } from "pg";
 import { Router } from "express";
 import { z } from "zod";
 import { getPool } from "../db.js";
@@ -23,9 +24,16 @@ authRouter.post("/register", async (req, res, next) => {
   if (!parsed.success) return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Please check the submitted fields." } });
   const input = parsed.data;
   const email = input.email.toLowerCase();
-  const client = await getPool().connect();
+  let client: PoolClient | undefined;
+  let transactionOpen = false;
+
   try {
+    // Keep connection acquisition inside the error boundary so DB outages
+    // are handled by the shared Express error handler.
+    client = await getPool().connect();
     await client.query("BEGIN");
+    transactionOpen = true;
+
     const passwordHash = await hashPassword(input.password);
     const user = await client.query<{ id: string }>(
       "INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
@@ -41,19 +49,23 @@ authRouter.post("/register", async (req, res, next) => {
       [organization.rows[0]!.id, user.rows[0]!.id],
     );
     await client.query("COMMIT");
+    transactionOpen = false;
+
     await createSession(user.rows[0]!.id, res);
     return res.status(201).json({
       success: true,
       data: { user: { id: user.rows[0]!.id, name: input.name, email }, organizationId: organization.rows[0]!.id },
     });
   } catch (error) {
-    await client.query("ROLLBACK");
+    if (transactionOpen && client) {
+      await client.query("ROLLBACK").catch(() => undefined);
+    }
     if (typeof error === "object" && error !== null && "code" in error && error.code === "23505") {
       return res.status(409).json({ success: false, error: { code: "EMAIL_IN_USE", message: "An account with this email already exists." } });
     }
     return next(error);
   } finally {
-    client.release();
+    client?.release();
   }
 });
 

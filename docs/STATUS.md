@@ -1,70 +1,66 @@
 # ORCA AI — Current Engineering Status
 
 Last verified: 2026-11-04  
-Repository version: 0.2.0-alpha.1 (proposed on the repository-readiness branch; not a tagged release)  
+Repository version: 0.3.0-alpha.1 (proposed on the current feature branch; not a tagged release)  
 Default branch: main
 
 ## GitHub state at audit time
 
-- PR #3 (identity, tenancy and project RBAC) is **merged**.
-- Current main HEAD: baa09c6a18ce4322b5da15bb10e18d0f5b6dbb3b.
-- CI run #61 on that merge commit completed successfully (typecheck, tests and build).
-- Repository-readiness work is being prepared on feat/repository-readiness-v0.2.0-alpha.1; it is not part of main until its PR is reviewed and merged.
-- No production deployment or end-to-end product test is claimed.
+- PR #4 (repository README, license, environment profiles and GitHub workflow readiness) is merged.
+- Current main HEAD at phase start: ea781a52320d26341328079bb347619416e6c6ca.
+- CI run #65 and CodeQL run #2 on the PR #4 merge commit completed successfully.
+- Control-plane verification work is being prepared on feat/control-plane-verification-v0.3.0-alpha.1; it is not part of main until its PR is reviewed and merged.
+- Main branch protection is not enabled yet.
+- No production deployment or full product execution is claimed.
 
-## Implemented
+## Implemented before this phase
 
-### Repository foundation
-- pnpm/Turborepo workspace.
-- React/Vite dashboard shell, Express API shell and worker bootstrap.
-- Docker Compose with PostgreSQL and Redis services.
-- GitHub Actions CI for workspace typecheck, tests and build.
-- Shared Zod contracts and an OpenAI-compatible model provider abstraction.
+- pnpm/Turborepo monorepo, React/Vite dashboard shell, Express API shell and worker bootstrap.
+- Docker Compose development services for PostgreSQL and Redis.
+- GitHub Actions CI and CodeQL.
+- Zod contracts and an OpenAI-compatible model provider abstraction.
+- PostgreSQL identity/organization/session schema and project lifecycle migration.
+- Registration, login, logout and current-user/organization-membership routes.
+- Scrypt password hashing and opaque HttpOnly session cookies with hashed server-side token storage.
+- Organization-scoped project list/create/read/update/archive endpoints.
+- Server-side active membership and role checks.
 
-### Identity and tenancy API
-- PostgreSQL tables/migrations for users, organizations, memberships, projects and sessions.
-- Registration creates a user, organization and owner membership in a transaction.
-- Scrypt password hashing with random per-password salts.
-- Opaque HttpOnly session cookie; only a SHA-256 token hash is persisted.
-- Login, logout and current-user/organization-membership routes.
+## Added in 0.3.0-alpha.1 branch
 
-### Project management API
-- Organization-scoped project list, create, read, update and archive endpoints.
-- Active organization membership required for access.
-- Owner/Admin/Member may create and update; Owner/Admin may archive.
-- Project archive is a soft state transition.
-- Unit tests cover password hashing and role-policy helpers.
+- Extracted Express app construction into createApp() so tests can start an isolated ephemeral HTTP server without binding the production API port.
+- Added graceful SIGTERM/SIGINT shutdown and PostgreSQL pool close in the server entry point.
+- Added PostgreSQL integration suite against a disposable database named orca_test.
+- Added tests for registration + owner membership, case-insensitive duplicate email, invalid login, logout revocation, cross-tenant list/read/update/archive protection and viewer/member/admin project permissions.
+- Updated CI to provision PostgreSQL 16, wait for health, and run integration tests together with unit tests.
+- Passed TEST_DATABASE_URL through the Turbo test task environment so integration tests execute under the monorepo runner.
+- Added local test environment template and documented safe integration test setup.
+- Bumped root and workspace package metadata to 0.3.0-alpha.1.
 
-## Current limitations / not yet proven
+## Validation status
 
-- pnpm-lock.yaml is absent; dependency resolution is not yet frozen/reproducible.
-- No PostgreSQL-backed integration tests for registration, login, CRUD, role enforcement or cross-tenant isolation.
-- Dashboard signup/login/project screens are not yet connected to the API.
-- Organization invitations, membership management and audit events are not implemented.
-- Rate limiting, password reset, email verification, MFA, session rotation and complete CSRF strategy are outstanding.
-- Worker is bootstrap-only; authenticated enrollment, heartbeat, revocation, job leases and execution are absent.
-- Browser discovery, API execution, realtime testing, k6 performance runs, accessibility/security engines and evidence reports are not implemented.
-- Model gateway is not yet connected to discovery/planning/triage workflows.
-- Production secrets management, structured observability, backup/restore drills, deployment hardening and operational runbooks are outstanding.
+- This branch's CI and CodeQL are pending until GitHub Actions completes.
+- Integration tests are authored but must not be called passing until the PostgreSQL workflow job completes.
+- pnpm-lock.yaml is still absent; CI still uses --no-frozen-lockfile.
+- Direct container clone/network access was unavailable during this run, so local test execution could not be performed here.
 
-## Version and maturity policy
+## Not yet implemented / next
 
-- 0.2.0-alpha.1 is a development baseline, not an MVP product release.
-- **Prototype** means the architecture and thin vertical slices can be exercised in controlled local environments.
-- **MVP** means a complete user journey works end-to-end on at least two unrelated authorized products, with reproducible evidence and tested tenant isolation.
-- **Production** requires security, reliability, observability, recovery, load and deployment exit criteria documented in [release readiness](RELEASE_READINESS.md).
+1. Commit and validate a pnpm lockfile; switch CI to frozen installs.
+2. Typed environment validation and structured logging with credential redaction.
+3. Dashboard signup/login and project list/create/detail connected to the real API.
+4. Password reset, email verification, rate limits, session rotation, CSRF hardening, org invitations and audit events.
+5. Authenticated worker enrollment, heartbeat, revocation, job leases and a persisted echo-job round trip.
+6. Explicit target allowlist and SSRF/DNS/redirect protections.
+7. Browser discovery and deterministic browser/API execution with evidence storage.
+8. Realtime/performance/accessibility/security engines and model-assisted planning.
 
-## Next milestone order
+## Maturity policy
 
-1. Add a committed pnpm lockfile and use frozen installs.
-2. Add PostgreSQL-backed API integration tests, including cross-tenant denial and role enforcement.
-3. Connect dashboard signup/login and project list/create/detail to real APIs.
-4. Add typed environment validation and centralized structured logging.
-5. Implement authenticated worker enrollment, heartbeat, revocation and persisted job round trip.
-6. Implement target authorization/SSRF controls before connecting browser or load engines.
-7. Build discovery + browser/API deterministic execution with evidence artifacts.
-8. Add realtime/performance/security/accessibility engines and model-assisted planning only after deterministic execution boundaries exist.
+- 0.3.0-alpha.1 is a control-plane verification development baseline, not an MVP product release.
+- **Prototype:** thin slices work in controlled local environments.
+- **MVP:** a complete user journey works end-to-end on at least two unrelated authorized products with reproducible evidence and tested tenant isolation.
+- **Production:** all security, reliability, observability, recovery, load, deployment and operational gates in [RELEASE_READINESS.md](RELEASE_READINESS.md) are met.
 
 ## Completion policy
 
-A feature is complete only when implementation exists, the relevant automated test executes, its result is visible in CI, and documentation accurately describes its limits. Do not promote planned configuration into an implemented feature by adding environment variables alone.
+A feature is complete only when implementation exists, its relevant automated test executes, the result is visible in CI, and docs accurately describe its limits. Never promote planned configuration into an implemented feature by adding environment variables alone.

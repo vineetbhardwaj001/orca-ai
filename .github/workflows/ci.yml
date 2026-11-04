@@ -22,7 +22,23 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: orca
+          POSTGRES_PASSWORD: orca_test_password
+          POSTGRES_DB: orca_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U orca -d orca_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgresql://orca:orca_test_password@localhost:5432/orca_test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,15 +53,14 @@ jobs:
         with:
           node-version: 22
 
-      # A pnpm lockfile is not committed yet. Replace with --frozen-lockfile
-      # after pnpm-lock.yaml is generated, reviewed and committed.
+      # A pnpm lockfile is still pending; switch to --frozen-lockfile once committed.
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
+      - name: Unit and PostgreSQL integration tests
         run: pnpm test
 
       - name: Build

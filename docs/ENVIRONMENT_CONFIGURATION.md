@@ -8,6 +8,7 @@ Use one profile per environment. Copy the selected example into your deployment 
 |---|---|---|---|
 | Local / MVP | [env/.env.mvp.example](../env/.env.mvp.example) | Current API + PostgreSQL development | No |
 | Prototype | [env/.env.prototype.example](../env/.env.prototype.example) | Local integration experiments | No |
+| Test | [env/.env.test.example](../env/.env.test.example) | Disposable PostgreSQL integration tests only | No |
 | Production | [env/.env.production.example](../env/.env.production.example) | Deployment target configuration only | No; release gates are not met |
 
 ## Variables consumed by the current code
@@ -15,12 +16,13 @@ Use one profile per environment. Copy the selected example into your deployment 
 | Variable | Current consumer | Requirement / behavior |
 |---|---|---|
 | NODE_ENV | API session cookie | Set to production behind HTTPS so the session cookie receives the Secure flag |
-| API_PORT | API server | Optional; defaults to 4000 |
+| API_PORT | API server entry point | Optional; defaults to 4000 |
 | WEB_BASE_URL | API CORS and mutation-origin checks | Optional; defaults to http://localhost:5173; use the exact deployed dashboard origin |
 | DATABASE_URL | PostgreSQL pool | Required when database-backed routes are used |
 | DATABASE_SSL | PostgreSQL pool | Set true to enable TLS with certificate verification |
 | DB_POOL_MAX | PostgreSQL pool | Optional; defaults to 10 |
 | WORKER_NAME | Worker bootstrap | Optional; defaults to orca-local-worker |
+| TEST_DATABASE_URL | API integration test | Required for PostgreSQL integration tests; database name must be exactly orca_test |
 
 WEB_PORT, API_BASE_URL, APP_ENV and POSTGRES_* are useful to local tooling/Compose or deployment configuration, but are not read by the current API runtime. Verify every variable against its consumer before treating it as an application contract.
 
@@ -36,6 +38,10 @@ The following values are present in prototype/production templates to document f
 - EVIDENCE_SIGNING_SECRET: evidence signing is not implemented yet.
 
 Do not make application startup depend on unused placeholders. Add typed schema validation when a variable becomes a real runtime dependency.
+
+## Test database safety
+
+The integration test suite runs SQL migrations and truncates its test tables. It refuses to start unless TEST_DATABASE_URL resolves to a PostgreSQL database whose name is exactly orca_test. Use a disposable local container or the isolated PostgreSQL service in GitHub Actions. Never point it at a development, staging or production database.
 
 ## Security rules
 

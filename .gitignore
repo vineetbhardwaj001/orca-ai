@@ -9,6 +9,7 @@ coverage/
 !.env.example
 !env/.env.mvp.example
 !env/.env.prototype.example
+!env/.env.test.example
 !env/.env.production.example
 *.log
 .DS_Store
