@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import { z } from "zod";
 import { getPool } from "../db.js";
@@ -25,13 +26,15 @@ authRouter.post("/register", async (req, res, next) => {
   const client = await getPool().connect();
   try {
     await client.query("BEGIN");
+    const passwordHash = await hashPassword(input.password);
     const user = await client.query<{ id: string }>(
       "INSERT INTO users (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id",
-      [input.name, email, await hashPassword(input.password)],
+      [input.name, email, passwordHash],
     );
+    const slug = `${input.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)}-${randomUUID().slice(0, 8)}`;
     const organization = await client.query<{ id: string }>(
       "INSERT INTO organizations (name, slug) VALUES ($1, $2) RETURNING id",
-      [input.organizationName, `${input.organizationName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60)}-${crypto.randomUUID().slice(0, 8)}`],
+      [input.organizationName, slug],
     );
     await client.query(
       "INSERT INTO organization_members (organization_id, user_id, role) VALUES ($1, $2, 'owner')",
