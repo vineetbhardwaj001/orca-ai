@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS authorized_targets (
     CHECK (hostname = lower(hostname) AND length(hostname) <= 240
       AND position('.' in hostname) > 1
       AND hostname !~ '(^|[.])(localhost|local|internal|home|lan|test|invalid|example|onion|arpa)$'),
+  CONSTRAINT authorized_targets_active_dns_check
     CHECK (
       status <> 'active'
       OR (
