@@ -1,5 +1,23 @@
 # ORCA Test Coverage Matrix
 
+## ORCA platform self-tests currently implemented
+
+| Area | Automated coverage in repository | Status |
+|---|---|---|
+| Password hashing | scrypt hash/verify unit tests | Implemented |
+| Project RBAC policy | Role helper unit tests | Implemented |
+| API health | Health payload unit test | Implemented |
+| Registration | PostgreSQL integration test: user, organization and owner membership | Added in v0.3 branch; CI pending |
+| Duplicate account | Case-insensitive duplicate email returns conflict | Added in v0.3 branch; CI pending |
+| Login | Invalid credentials return unauthorized | Added in v0.3 branch; CI pending |
+| Session | Unauthenticated request and logout revocation | Added in v0.3 branch; CI pending |
+| Tenant boundaries | Cross-tenant list/read/update/archive isolation | Added in v0.3 branch; CI pending |
+| Project roles | Viewer/member/admin permission matrix with real PostgreSQL | Added in v0.3 branch; CI pending |
+| Dashboard E2E | Signup/login/project screens through browser | Not implemented |
+| Worker E2E | Enroll/heartbeat/lease/execute/revoke | Not implemented |
+
+## Future ORCA product test catalogue
+
 | Feature area | Discovery | Deterministic tests | Autonomous exploration | Evidence / metric |
 |---|---|---|---|---|
 | Signup | signup page, fields, validation hints | valid/invalid/duplicate signup | alternate user journeys | screenshots, field errors, created test user |
@@ -18,6 +36,7 @@
 | Resilience | retries and offline states | timeout/retry/cancel/disconnect | fault hypotheses, approved only | state transitions and logs |
 
 ## Outcome semantics
+
 - PASS: all required deterministic assertions executed and passed.
 - FAIL: at least one required assertion failed with evidence.
 - BLOCKED: execution could not proceed because a dependency, permission, login or environment was unavailable.

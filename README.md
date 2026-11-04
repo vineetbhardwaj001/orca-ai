@@ -5,7 +5,7 @@
 *Universal Autonomous QA Lab*
 
 [![ORCA CI](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.2.0--alpha.1-orange)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.3.0--alpha.1-orange)](CHANGELOG.md)
 [![Stage](https://img.shields.io/badge/stage-prototype-blue)](docs/STATUS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -14,24 +14,24 @@
 
 ORCA is being built as a universal quality-assurance platform for authorized websites, web applications, APIs, real-time systems and source-code repositories. It combines deterministic test engines with AI-assisted discovery, planning, exploration, bug investigation and evidence review.
 
-> **Stage: Prototype / early MVP foundation.** ORCA is not a production-ready hosted QA service. The repository contains identity and project-management API foundations, a dashboard shell, shared contracts and a worker bootstrap. Real browser/API/realtime/load execution, secure worker enrollment and database-backed tenant-isolation tests are still under development.
+> **Stage: Prototype / early MVP foundation.** The current repository contains identity and project-management API foundations, a dashboard shell, shared contracts and a worker bootstrap. PostgreSQL-backed integration tests now exercise auth, role permissions and tenant boundaries in CI. Real browser/API/realtime/load execution, secure worker enrollment and production operations remain under development.
 
 ## Project status
 
 | Area | Current state |
 |---|---|
 | Monorepo foundation | Implemented |
-| React dashboard shell | Scaffold; not connected to auth/project APIs |
-| API health and identity routes | Implemented |
-| Organization/project API and role checks | Implemented; DB integration coverage pending |
+| Dashboard | Shell; not connected to auth/project APIs |
+| Identity API | Implemented; PostgreSQL integration coverage in CI |
+| Organization/project API | Implemented; tenant/role integration tests in CI |
 | PostgreSQL migrations | Initial identity and project lifecycle migrations |
 | Shared contracts | Initial job, worker and outcome schemas |
 | Model gateway | Provider abstraction; not wired into product workflows |
-| Worker | Bootstrap only; execution intentionally disabled |
+| Worker | Bootstrap only; execution disabled |
 | Browser/API/realtime/performance engines | Planned; not implemented |
 | Production operations and hardening | Not ready |
 
-Green CI validates the current typecheck, unit tests and build; it does **not** mean every product capability is implemented or production-safe. See [engineering status](docs/STATUS.md).
+CI passing means the current automated checks pass against the repository state. It does not mean all planned ORCA capabilities are implemented or that the service is production-ready. See [engineering status](docs/STATUS.md).
 
 ## What ORCA is designed to test
 
@@ -46,7 +46,7 @@ All testing must be authorized, scope-limited and evidence-backed. Deterministic
 
 ## Architecture
 
-ORCA follows a **modular-monolith control plane with separately deployable execution workers**. This keeps the early system understandable while allowing execution capacity to scale independently.
+ORCA follows a **modular-monolith control plane with separately deployable execution workers**.
 
 | Layer | Technology | Responsibility |
 |---|---|---|
@@ -68,7 +68,7 @@ See [architecture](docs/ARCHITECTURE.md), [security model](docs/SECURITY_MODEL.m
 ~~~text
 orca-ai/
 ├── apps/
-│   ├── api/                 # Express API and SQL migrations
+│   ├── api/                 # Express API, route handlers, SQL migrations and DB integration tests
 │   ├── dashboard/           # React + Vite + SCSS dashboard
 │   └── worker/              # Worker bootstrap (execution not enabled)
 ├── packages/
@@ -76,7 +76,7 @@ orca-ai/
 │   └── model-gateway/       # Provider-neutral model interface
 ├── integrations/openclaw/   # Optional orchestration boundary
 ├── docs/                    # Architecture, security, roadmap and status
-├── env/                     # MVP, prototype and production templates
+├── env/                     # MVP, prototype, test and production templates
 ├── .github/workflows/       # CI and CodeQL
 ├── docker-compose.yml
 ├── pnpm-workspace.yaml
@@ -84,7 +84,7 @@ orca-ai/
 └── README.md
 ~~~
 
-The repository is intentionally small. Future engines, agents, integrations and infrastructure packages are documented as extension points, not empty placeholder directories. Read [repository structure and scaling rules](docs/REPOSITORY_STRUCTURE.md).
+Future engines, agents and infrastructure packages are documented as extension points, not empty placeholder directories. Read [repository structure and scaling rules](docs/REPOSITORY_STRUCTURE.md).
 
 ## Quick start
 
@@ -97,9 +97,9 @@ pnpm install --no-frozen-lockfile
 docker compose up -d postgres redis
 ~~~
 
-Copy .env.example to .env and set local values. Never commit .env or real credentials.
+Copy .env.example to .env and set local values. Never commit populated environment files or credentials.
 
-**Lockfile note:** pnpm-lock.yaml is not currently committed, so setup and CI use --no-frozen-lockfile. Generating and committing a reviewed lockfile is a release-readiness task; afterward switch CI and local setup to frozen installs.
+**Lockfile note:** pnpm-lock.yaml is not yet committed, so installs currently use --no-frozen-lockfile. A reviewed lockfile remains a release-readiness task.
 
 Apply migrations:
 
@@ -110,6 +110,28 @@ pnpm dev
 ~~~
 
 The worker currently prints bootstrap status and exits; it does not execute tests or accept jobs.
+
+## Testing
+
+Unit tests:
+
+~~~bash
+pnpm test
+~~~
+
+PostgreSQL integration tests require a disposable database named orca_test. The suite refuses destructive setup against any other database name and CI is configured to fail rather than silently skip the suite.
+
+~~~bash
+# Start a separate disposable test database. Do not use development or production data.
+docker run --rm --name orca-test-db -e POSTGRES_USER=orca -e POSTGRES_PASSWORD=orca_test_password -e POSTGRES_DB=orca_test -p 5433:5432 -d postgres:16-alpine
+
+# PowerShell
+$env:TEST_DATABASE_URL="postgresql://orca:orca_test_password@localhost:5433/orca_test"
+$env:REQUIRE_DB_INTEGRATION="true"
+pnpm test:integration
+~~~
+
+CI starts an isolated PostgreSQL 16 service and runs these tests on every pull request. Coverage includes registration, current-user membership, duplicate email, invalid login, logout/session revocation, cross-tenant list/read/update/archive denial, and viewer/member/admin project permissions. This suite is not an independent security audit.
 
 ## API foundation
 
@@ -128,15 +150,16 @@ Base prefix: /api/v1
 | PATCH | /organizations/:organizationId/projects/:projectId | Update project |
 | POST | /organizations/:organizationId/projects/:projectId/archive | Soft-archive project |
 
-Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. DB-backed integration tests are still required before production use. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
+Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
 
 ## Environment profiles
 
-- **MVP:** env/.env.mvp.example — minimal local MVP development.
-- **Prototype:** env/.env.prototype.example — local integrations and reserved configuration.
-- **Production:** env/.env.production.example — deployment template with secure defaults and placeholders.
+- **MVP:** env/.env.mvp.example — minimal local development.
+- **Prototype:** env/.env.prototype.example — local integration experiments.
+- **Test:** env/.env.test.example — disposable PostgreSQL integration database.
+- **Production:** env/.env.production.example — placeholders and target settings only; not production approval.
 
-The production template is **not** a deployment approval. Queue, worker enrollment, evidence storage and hosted model settings are reserved for upcoming milestones and are not consumed by the current app. Read [environment configuration](docs/ENVIRONMENT_CONFIGURATION.md).
+Queue, worker enrollment, evidence storage and hosted model settings are reserved for future milestones and are not consumed by the current app. Read [environment configuration](docs/ENVIRONMENT_CONFIGURATION.md).
 
 ## Development workflow
 
