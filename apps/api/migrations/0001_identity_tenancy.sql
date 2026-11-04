@@ -1,4 +1,4 @@
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- PostgreSQL 16+. gen_random_uuid() is built in; no privileged extension install required.
 
 CREATE TABLE IF NOT EXISTS users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -28,6 +28,17 @@ CREATE TABLE IF NOT EXISTS organization_members (
   PRIMARY KEY (organization_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS organization_members_user_idx ON organization_members (user_id, status);
+
+CREATE TABLE IF NOT EXISTS projects (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name varchar(120) NOT NULL,
+  description varchar(1000) NOT NULL DEFAULT '',
+  created_by uuid NOT NULL REFERENCES users(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS projects_org_created_idx ON projects (organization_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
