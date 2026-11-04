@@ -5,8 +5,8 @@
 *Universal Autonomous QA Lab*
 
 [![ORCA CI](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.3.0--alpha.1-orange)](CHANGELOG.md)
-[![Stage](https://img.shields.io/badge/stage-prototype-blue)](docs/STATUS.md)
+[![Version](https://img.shields.io/badge/version-0.4.0--alpha.1-orange)](CHANGELOG.md)
+[![Stage](https://img.shields.io/badge/stage-dashboard--integration-blue)](docs/STATUS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Test software like real users. Verify outcomes like an engineer.**
@@ -14,24 +14,26 @@
 
 ORCA is being built as a universal quality-assurance platform for authorized websites, web applications, APIs, real-time systems and source-code repositories. It combines deterministic test engines with AI-assisted discovery, planning, exploration, bug investigation and evidence review.
 
-> **Stage: Prototype / early MVP foundation.** The current repository contains identity and project-management API foundations, a dashboard shell, shared contracts and a worker bootstrap. PostgreSQL-backed integration tests now exercise auth, role permissions and tenant boundaries in CI. Real browser/API/realtime/load execution, secure worker enrollment and production operations remain under development.
+> **Stage: dashboard and control-plane integration.** The API now has PostgreSQL-backed identity, sessions, organizations and project lifecycle endpoints. The React dashboard in this milestone connects signup, login, session restoration, organization context and project CRUD to those real endpoints. Browser/API/realtime/load execution, secure worker enrollment and production operations remain under development.
 
 ## Project status
 
 | Area | Current state |
 |---|---|
 | Monorepo foundation | Implemented |
-| Dashboard | Shell; not connected to auth/project APIs |
-| Identity API | Implemented; PostgreSQL integration coverage in CI |
-| Organization/project API | Implemented; tenant/role integration tests in CI |
-| PostgreSQL migrations | Initial identity and project lifecycle migrations |
-| Shared contracts | Initial job, worker and outcome schemas |
+| Dashboard authentication | Integrated with real API |
+| Organization context | Loaded from authenticated memberships |
+| Project management | Real list, create, read, update and archive flows |
+| API configuration | Zod validation; server fails fast on invalid/missing database configuration |
+| API observability | Request IDs and structured metadata-only request logs |
+| PostgreSQL migrations | Initial identity and project lifecycle schema |
+| Automated verification | Unit tests, PostgreSQL integration tests and Playwright dashboard journey in CI |
 | Model gateway | Provider abstraction; not wired into product workflows |
 | Worker | Bootstrap only; execution disabled |
 | Browser/API/realtime/performance engines | Planned; not implemented |
 | Production operations and hardening | Not ready |
 
-CI passing means the current automated checks pass against the repository state. It does not mean all planned ORCA capabilities are implemented or that the service is production-ready. See [engineering status](docs/STATUS.md).
+CI passing means the checks executed against that commit passed. It does not mean all planned ORCA capabilities are implemented or that the service is production-ready. See [engineering status](docs/STATUS.md).
 
 ## What ORCA is designed to test
 
@@ -42,7 +44,7 @@ CI passing means the current automated checks pass against the repository state.
 - **Repositories:** authorized source inspection, dependency/configuration review and evidence-backed findings.
 - **AI-assisted QA:** discovery, test-plan suggestions, exploratory scenarios, bug triage and independent review.
 
-All testing must be authorized, scope-limited and evidence-backed. Deterministic assertions—not model opinions—must decide pass/fail outcomes.
+These are product goals, not a claim that the corresponding engines already exist. All testing must be authorized, scope-limited and evidence-backed. Deterministic assertions—not model opinions—must decide pass/fail outcomes.
 
 ## Architecture
 
@@ -50,7 +52,7 @@ ORCA follows a **modular-monolith control plane with separately deployable execu
 
 | Layer | Technology | Responsibility |
 |---|---|---|
-| Dashboard | React 18, Vite 6, TypeScript, SCSS | Project and test operations UI |
+| Dashboard | React 18, Vite 6, TypeScript, SCSS | Authentication and project operations UI |
 | API | Node.js 22+, Express 4, TypeScript | Identity, tenancy and control plane |
 | Contracts | Zod | Runtime validation and shared DTOs |
 | Persistence | PostgreSQL 16 | Users, organizations, memberships, projects and sessions |
@@ -68,8 +70,8 @@ See [architecture](docs/ARCHITECTURE.md), [security model](docs/SECURITY_MODEL.m
 ~~~text
 orca-ai/
 ├── apps/
-│   ├── api/                 # Express API, route handlers, SQL migrations and DB integration tests
-│   ├── dashboard/           # React + Vite + SCSS dashboard
+│   ├── api/                 # Express API, configuration, migrations and DB tests
+│   ├── dashboard/           # React + Vite + SCSS, API client and Playwright journey
 │   └── worker/              # Worker bootstrap (execution not enabled)
 ├── packages/
 │   ├── contracts/           # Shared Zod schemas
@@ -97,11 +99,9 @@ pnpm install --no-frozen-lockfile
 docker compose up -d postgres redis
 ~~~
 
-Copy .env.example to .env and set local values. Never commit populated environment files or credentials.
+Copy .env.example to .env and keep the local values local. The API validates DATABASE_URL, WEB_BASE_URL, API_PORT, DATABASE_SSL, DB_POOL_MAX and NODE_ENV at startup. Never commit populated environment files or credentials.
 
-**Lockfile note:** pnpm-lock.yaml is not yet committed, so installs currently use --no-frozen-lockfile. A reviewed lockfile remains a release-readiness task.
-
-Apply migrations:
+Apply migrations and start the workspace:
 
 ~~~bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
@@ -109,20 +109,24 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_life
 pnpm dev
 ~~~
 
+Open the dashboard at http://localhost:5173. In development, Vite proxies /api and /health to the API on port 4000; browser requests remain same-origin and use the HttpOnly session cookie. The API origin must match WEB_BASE_URL.
+
+**Lockfile note:** pnpm-lock.yaml is not yet committed, so dependency installation still uses --no-frozen-lockfile. A reviewed lockfile is still required before switching CI to frozen installs.
+
 The worker currently prints bootstrap status and exits; it does not execute tests or accept jobs.
 
 ## Testing
 
-Unit tests:
+Unit tests and the PostgreSQL-backed API integration suite:
 
 ~~~bash
 pnpm test
 ~~~
 
-PostgreSQL integration tests require a disposable database named orca_test. The suite refuses destructive setup against any other database name and CI is configured to fail rather than silently skip the suite.
+The integration suite requires a disposable database named orca_test. It refuses destructive setup against any other database name and CI fails rather than silently skipping it.
 
 ~~~bash
-# Start a separate disposable test database. Do not use development or production data.
+# Example disposable local database; never point this at development or production data.
 docker run --rm --name orca-test-db -e POSTGRES_USER=orca -e POSTGRES_PASSWORD=orca_test_password -e POSTGRES_DB=orca_test -p 5433:5432 -d postgres:16-alpine
 
 # PowerShell
@@ -131,7 +135,13 @@ $env:REQUIRE_DB_INTEGRATION="true"
 pnpm test:integration
 ~~~
 
-CI starts an isolated PostgreSQL 16 service and runs these tests on every pull request. Coverage includes registration, current-user membership, duplicate email, invalid login, logout/session revocation, cross-tenant list/read/update/archive denial, and viewer/member/admin project permissions. This suite is not an independent security audit.
+Dashboard browser tests use Playwright and the real API. CI provisions a separate orca_e2e database, applies migrations, starts the API and dashboard and executes the registration → project create/read/update/archive → logout/login journey.
+
+~~~bash
+pnpm test:e2e
+~~~
+
+For a local browser run, start the API and dashboard against a disposable migrated database before running the command. See [database migration and rollback guidance](docs/DATABASE_MIGRATIONS.md).
 
 ## API foundation
 
@@ -143,14 +153,14 @@ Base prefix: /api/v1
 | POST | /auth/register | Create account, organization and owner membership |
 | POST | /auth/login | Create authenticated session |
 | POST | /auth/logout | Revoke current session |
-| GET | /auth/me | Current user and active organizations |
+| GET | /auth/me | Current user and active organization memberships |
 | GET | /organizations/:organizationId/projects | List active organization projects |
 | POST | /organizations/:organizationId/projects | Create project |
 | GET | /organizations/:organizationId/projects/:projectId | Read project |
 | PATCH | /organizations/:organizationId/projects/:projectId | Update project |
 | POST | /organizations/:organizationId/projects/:projectId/archive | Soft-archive project |
 
-Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
+Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. The dashboard uses the same endpoints; UI visibility is not a substitute for API authorization. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
 
 ## Environment profiles
 
@@ -169,19 +179,14 @@ Create a short-lived feature branch from main, keep changes focused, include tes
 
 Only test systems for which you have explicit authorization. Production load, destructive flows, account changes and external side effects require approval of target, scope, limits and execution window. Worker authorization, SSRF protections, kill switch, rate limits, audit trail and full production controls are still being built. For vulnerability reports, follow [SECURITY.md](.github/SECURITY.md).
 
-## GitHub About panel
-
-Suggested description: **Universal QA lab for browser, API, real-time and performance testing with evidence-backed AI assistance.**
-
-Suggested topics: qa-automation, autonomous-testing, playwright, api-testing, performance-testing, k6, websocket-testing, typescript, react, nodejs, ai-agents.
-
 ## Documentation
 
 - [Engineering status](docs/STATUS.md) · [Master roadmap](docs/MASTER_ROADMAP.md) · [Implementation milestones](docs/IMPLEMENTATION_ROADMAP.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Repository structure](docs/REPOSITORY_STRUCTURE.md) · [Environment configuration](docs/ENVIRONMENT_CONFIGURATION.md)
 - [Security model](docs/SECURITY_MODEL.md) · [Release readiness](docs/RELEASE_READINESS.md) · [GitHub workflow](docs/GITHUB_WORKFLOW.md)
-- [Test coverage](docs/TEST_COVERAGE_MATRIX.md) · [Database schema](docs/DATABASE_SCHEMA.md) · [API contracts](docs/API_CONTRACTS.md) · [Worker protocol](docs/WORKER_PROTOCOL.md)
-- [Model strategy](docs/MODEL_STRATEGY.md) · [OpenClaw boundary](integrations/openclaw/README.md) · [Changelog](CHANGELOG.md)
+- [Test coverage](docs/TEST_COVERAGE_MATRIX.md) · [Database schema](docs/DATABASE_SCHEMA.md) · [Database migrations](docs/DATABASE_MIGRATIONS.md)
+- [API contracts](docs/API_CONTRACTS.md) · [Worker protocol](docs/WORKER_PROTOCOL.md) · [Model strategy](docs/MODEL_STRATEGY.md)
+- [OpenClaw boundary](integrations/openclaw/README.md) · [Changelog](CHANGELOG.md)
 
 ## License
 

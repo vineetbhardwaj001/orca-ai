@@ -1,6 +1,6 @@
 {
   "name": "orca-ai",
-  "version": "0.3.0-alpha.1",
+  "version": "0.4.0-alpha.1",
   "private": true,
   "description": "ORCA — Omni-purpose Reliability, Coverage & Assurance. Universal Autonomous QA Lab.",
   "packageManager": "pnpm@9.15.4",
@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:integration": "pnpm --filter @orca/api test:integration",
+    "test:e2e": "pnpm --filter @orca/dashboard test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
