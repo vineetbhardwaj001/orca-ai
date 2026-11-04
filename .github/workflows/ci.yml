@@ -1,21 +1,52 @@
 name: ORCA CI
+
 on:
   push:
-    branches: [main, "feat/**"]
+    branches:
+      - main
+      - "feat/**"
+      - "fix/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orca-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
+    name: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 9.15.4
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: pnpm install --no-frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm build
+
+      # A pnpm lockfile is not committed yet. Replace with --frozen-lockfile
+      # after pnpm-lock.yaml is generated, reviewed and committed.
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
