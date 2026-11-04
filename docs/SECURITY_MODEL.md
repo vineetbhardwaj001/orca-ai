@@ -19,19 +19,22 @@ Treat submitted URLs, websites, repositories, source files, API responses, docum
 
 ## API abuse controls
 
-- Every worker API route has an explicit express-rate-limit middleware before its database or authorization handler.
+- Every worker and target-management API route has an explicit express-rate-limit middleware before its database or authorization handler.
 - Enrollment issue/claim and privileged mutations use tighter per-IP budgets; worker heartbeat and job polling have higher budgets to support normal worker cadence.
 - Rate-limit responses use HTTP 429, a stable JSON error code and standard RateLimit response headers.
 - The default limiter store is process-local memory. It protects a single API process, but does not coordinate quotas across multiple replicas or survive restarts. Configure a shared store (for example, Redis) before horizontally scaling the API.
 - The limiter keys off Express's client IP. When deploying behind a reverse proxy, configure only the exact trusted proxy hop count for that deployment; do not blindly enable trust for arbitrary forwarded headers.
 
-## Target authorization
+## Target authorization and SSRF boundary (v0.6)
 
-- Require the project owner to confirm authority to test each target.
-- Use explicit per-project domain, scheme, port and path allowlists.
-- Revalidate DNS resolution and redirects to mitigate SSRF and DNS rebinding.
-- Block loopback, link-local, private, metadata-service and other reserved destinations for cloud workers unless a separately approved isolated test environment explicitly requires them.
-- Local workers may access local targets only through an explicit local allowlist.
+- Only active organization owners/admins can register, verify, list or revoke project targets. Target rows are bound to both `organization_id` and `project_id` by a composite foreign key.
+- Registration requires an explicit authorization attestation and an expiry between one hour and ninety days. Expired authorization is not eligible for verification.
+- A target is an exact HTTP(S) origin plus explicit path prefixes. v0.6 allows only ports 80/443 matching the scheme; it rejects credentials, URL paths/query/fragments, IP literals, single-label names and local/reserved DNS suffixes.
+- Domain control must be proven by a one-time random TXT challenge at `_orca-verify.<hostname>`. Only a SHA-256 digest is stored; the record value is returned once.
+- DNS verification resolves all available A/AAAA answers, caps answer count, and rejects the complete set if any address is not globally routable. Private, loopback, link-local, carrier-grade NAT, multicast, unspecified, documentation and reserved ranges are denied using `ipaddr.js` range classification.
+- The public DNS answer set is persisted with a 24-hour verification freshness window. The `assertPinnedDnsResolution` guard rejects any changed answer set. A future executor must call it immediately before each connection and pin the validated IP at the socket layer; resolving once and then connecting by hostname would reintroduce DNS-rebinding risk.
+- Future HTTP clients must disable automatic redirects or validate every redirect hop against the approved scheme/host/port/path scope and repeat DNS validation before connecting. v0.6 does not follow redirects or send any request to a target.
+- v0.6 does not enable local/private target exceptions, target browser/API jobs, arbitrary outbound requests or proxy behavior. No registered target is executable yet; API responses explicitly report `executionEnabled: false`.
 - Never let a worker act as a general-purpose proxy into a user's network.
 
 ## Execution isolation
