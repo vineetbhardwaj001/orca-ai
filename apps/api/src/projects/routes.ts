@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { getPool } from "../db.js";
 import { getSessionUser } from "../auth/session.js";
@@ -16,7 +16,7 @@ const updateProjectSchema = z.object({
   description: z.string().trim().max(1000).optional(),
 }).refine((value) => Object.keys(value).length > 0, "At least one field is required");
 
-async function requireUser(req: Parameters<Parameters<typeof projectsRouter.get>[1]>[0], res: Parameters<Parameters<typeof projectsRouter.get>[1]>[1]) {
+async function requireUser(req: Request, res: Response) {
   const user = await getSessionUser(req);
   if (!user) {
     res.status(401).json({ success: false, error: { code: "UNAUTHENTICATED", message: "Please sign in to continue." } });
