@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import type { PoolClient } from "pg";
 import { z } from "zod";
+import { rateLimit } from "express-rate-limit";
 import { getPool } from "../db.js";
 import { getSessionUser } from "../auth/session.js";
 import { createOpaqueToken, hashOpaqueToken, readBearerToken, readLeaseToken } from "./security.js";
@@ -44,6 +45,84 @@ type WorkerRecord = {
 function sendError(res: Response, status: number, code: string, message: string) {
   return res.status(status).json({ success: false, error: { code, message } });
 }
+
+const rateLimitMessage = {
+  success: false,
+  error: { code: "RATE_LIMITED", message: "Too many requests. Please retry later." },
+};
+
+const enrollmentTokenIssueLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-enrollment-token-issue",
+  message: rateLimitMessage,
+});
+const enrollmentTokenRevokeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-enrollment-token-revoke",
+  message: rateLimitMessage,
+});
+const workersListLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-admin-list",
+  message: rateLimitMessage,
+});
+const workerRevokeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-admin-revoke",
+  message: rateLimitMessage,
+});
+const echoJobCreateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-echo-job-create",
+  message: rateLimitMessage,
+});
+const enrollmentClaimLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-enrollment-claim",
+  message: rateLimitMessage,
+});
+const workerHeartbeatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 600,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-heartbeat",
+  message: rateLimitMessage,
+});
+const workerJobClaimLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 600,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-job-claim",
+  message: rateLimitMessage,
+});
+const workerJobCompleteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 120,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  identifier: "worker-job-complete",
+  message: rateLimitMessage,
+});
 
 async function requireOrgAdmin(req: Request, res: Response, organizationId: string) {
   const user = await getSessionUser(req);
@@ -93,7 +172,7 @@ async function authenticateWorker(
 
 export const workerAdminRouter = Router();
 
-workerAdminRouter.post("/:organizationId/workers/enrollment-tokens", async (req, res, next) => {
+workerAdminRouter.post("/:organizationId/workers/enrollment-tokens", enrollmentTokenIssueLimiter, async (req, res, next) => {
   const organization = uuidSchema.safeParse(req.params.organizationId);
   const body = enrollmentSchema.safeParse(req.body);
   if (!organization.success || !body.success) {
@@ -123,7 +202,7 @@ workerAdminRouter.post("/:organizationId/workers/enrollment-tokens", async (req,
   }
 });
 
-workerAdminRouter.post("/:organizationId/workers/enrollment-tokens/:tokenId/revoke", async (req, res, next) => {
+workerAdminRouter.post("/:organizationId/workers/enrollment-tokens/:tokenId/revoke", enrollmentTokenRevokeLimiter, async (req, res, next) => {
   const organization = uuidSchema.safeParse(req.params.organizationId);
   const tokenId = uuidSchema.safeParse(req.params.tokenId);
   if (!organization.success || !tokenId.success) {
@@ -148,7 +227,7 @@ workerAdminRouter.post("/:organizationId/workers/enrollment-tokens/:tokenId/revo
   }
 });
 
-workerAdminRouter.get("/:organizationId/workers", async (req, res, next) => {
+workerAdminRouter.get("/:organizationId/workers", workersListLimiter, async (req, res, next) => {
   const organization = uuidSchema.safeParse(req.params.organizationId);
   if (!organization.success) return sendError(res, 400, "INVALID_ORGANIZATION_ID", "Organization ID is invalid.");
   try {
@@ -166,7 +245,7 @@ workerAdminRouter.get("/:organizationId/workers", async (req, res, next) => {
   }
 });
 
-workerAdminRouter.post("/:organizationId/workers/:workerId/revoke", async (req, res, next) => {
+workerAdminRouter.post("/:organizationId/workers/:workerId/revoke", workerRevokeLimiter, async (req, res, next) => {
   const organization = uuidSchema.safeParse(req.params.organizationId);
   const workerId = uuidSchema.safeParse(req.params.workerId);
   if (!organization.success || !workerId.success) {
@@ -210,7 +289,7 @@ workerAdminRouter.post("/:organizationId/workers/:workerId/revoke", async (req, 
   }
 });
 
-workerAdminRouter.post("/:organizationId/jobs/echo", async (req, res, next) => {
+workerAdminRouter.post("/:organizationId/jobs/echo", echoJobCreateLimiter, async (req, res, next) => {
   const organization = uuidSchema.safeParse(req.params.organizationId);
   const body = echoJobSchema.safeParse(req.body);
   if (!organization.success || !body.success) {
@@ -247,7 +326,7 @@ workerAdminRouter.post("/:organizationId/jobs/echo", async (req, res, next) => {
 
 export const workerEnrollmentRouter = Router();
 
-workerEnrollmentRouter.post("/claim", async (req, res, next) => {
+workerEnrollmentRouter.post("/claim", enrollmentClaimLimiter, async (req, res, next) => {
   const body = claimEnrollmentSchema.safeParse(req.body);
   if (!body.success) return sendError(res, 400, "VALIDATION_ERROR", "Enrollment token or worker name is invalid.");
 
@@ -305,7 +384,7 @@ workerEnrollmentRouter.post("/claim", async (req, res, next) => {
 
 export const workerProtocolRouter = Router();
 
-workerProtocolRouter.post("/:workerId/heartbeat", async (req, res, next) => {
+workerProtocolRouter.post("/:workerId/heartbeat", workerHeartbeatLimiter, async (req, res, next) => {
   const workerId = uuidSchema.safeParse(req.params.workerId);
   const body = heartbeatSchema.safeParse(req.body);
   if (!workerId.success || !body.success) return sendError(res, 400, "VALIDATION_ERROR", "Worker ID or heartbeat is invalid.");
@@ -331,7 +410,7 @@ workerProtocolRouter.post("/:workerId/heartbeat", async (req, res, next) => {
   }
 });
 
-workerProtocolRouter.post("/:workerId/jobs/claim", async (req, res, next) => {
+workerProtocolRouter.post("/:workerId/jobs/claim", workerJobClaimLimiter, async (req, res, next) => {
   const workerId = uuidSchema.safeParse(req.params.workerId);
   if (!workerId.success) return sendError(res, 400, "INVALID_WORKER_ID", "Worker ID is invalid.");
   let client: PoolClient | undefined;
@@ -432,7 +511,7 @@ workerProtocolRouter.post("/:workerId/jobs/claim", async (req, res, next) => {
   }
 });
 
-workerProtocolRouter.post("/:workerId/jobs/:jobId/complete", async (req, res, next) => {
+workerProtocolRouter.post("/:workerId/jobs/:jobId/complete", workerJobCompleteLimiter, async (req, res, next) => {
   const workerId = uuidSchema.safeParse(req.params.workerId);
   const jobId = uuidSchema.safeParse(req.params.jobId);
   const leaseToken = readLeaseToken(req);
