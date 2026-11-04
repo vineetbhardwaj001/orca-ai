@@ -36,6 +36,10 @@ The initial dashboard, API health service, worker bootstrap and shared execution
 ## Documentation
 - [Master roadmap](docs/MASTER_ROADMAP.md)
 - [Model evaluation strategy](docs/MODEL_STRATEGY.md)
+- [Repository structure](docs/REPOSITORY_STRUCTURE.md)
+- [Test coverage matrix](docs/TEST_COVERAGE_MATRIX.md)
+- [OpenClaw integration boundary](integrations/openclaw/README.md)
+- [Model evaluation strategy](docs/MODEL_STRATEGY.md)
 - [Target repository structure](docs/REPOSITORY_STRUCTURE.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Database schema](docs/DATABASE_SCHEMA.md)
