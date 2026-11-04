@@ -210,7 +210,7 @@ Create a short-lived feature branch from main, keep changes focused, include tes
 
 ## Security and responsible testing
 
-Only test systems for which you have explicit authorization. Production load, destructive flows, account changes and external side effects require approval of target, scope, limits and execution window. Worker authorization, SSRF protections, kill switch, rate limits, audit trail and full production controls are still being built. For vulnerability reports, follow [SECURITY.md](.github/SECURITY.md).
+Only test systems for which you have explicit authorization. Production load, destructive flows, account changes and external side effects require approval of target, scope, limits and execution window. Worker API routes now have route-level per-IP rate limits. The default in-memory limiter is process-local and does not coordinate multiple API replicas; configure a shared store before horizontal scaling. Broader authentication/project API limits, worker authorization hardening, SSRF protections, kill switch, audit trail and full production controls are still being built. For vulnerability reports, follow [SECURITY.md](.github/SECURITY.md).
 
 ## Documentation
 
