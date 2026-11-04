@@ -38,7 +38,7 @@ The worker reads the following values. They are not required by the API process.
 | WORKER_NAME | Display name submitted during enrollment; defaults to orca-worker. |
 | WORKER_POLL_INTERVAL_MS | Poll delay when idle; defaults to 2000 ms. |
 | WORKER_HEARTBEAT_INTERVAL_MS | Idle heartbeat cadence; defaults to 15000 ms. |
-| WORKER_VERSION | Worker-reported version; defaults to 0.5.0. |
+| WORKER_VERSION | Worker-reported version; defaults to 0.5.0 in the current worker runtime; package workspace is 0.6.0-alpha.1. |
 
 The worker stores its returned credential locally with POSIX mode `0600` and a containing directory mode `0700`. Windows does not enforce these POSIX mode bits; use a worker account with restrictive NTFS profile-directory ACLs. The credential file is a secret. Back it up securely or revoke/re-enroll after loss. Do not copy it into the dashboard or commit it.
 
@@ -69,7 +69,7 @@ Do not make application startup depend on unused placeholders. Add typed schema 
 
 The integration test suite runs migrations and truncates its test tables. It refuses to start unless `TEST_DATABASE_URL` resolves to a PostgreSQL database whose name is exactly `orca_test`. Use a disposable local container or the isolated PostgreSQL service in GitHub Actions. Never point it at a development, staging or production database.
 
-The Playwright CI journey uses a separate disposable `orca_e2e` database. CI creates it, applies the dashboard-required identity and project migrations and points only the browser-test API process at it. The API PostgreSQL integration suite applies all three current migrations to `orca_test`.
+The Playwright CI journey uses a separate disposable `orca_e2e` database. CI creates it, applies the dashboard-required identity and project migrations and points only the browser-test API process at it. The API PostgreSQL integration suite applies all four current migrations to `orca_test`.
 
 ## Security rules
 
