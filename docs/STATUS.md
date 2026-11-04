@@ -1,55 +1,70 @@
-# ORCA — Current Engineering Status
+# ORCA AI — Current Engineering Status
 
-Last updated: 2026-11-04
+Last verified: 2026-11-04  
+Repository version: 0.2.0-alpha.1 (proposed on the repository-readiness branch; not a tagged release)  
+Default branch: main
 
-## Repository state
+## GitHub state at audit time
 
-- Working branch: `feat/qa-lab-foundation`
-- Default branch: `main`
-- Comparison with main at the time of this status snapshot: 27 commits ahead, 2 commits behind; Git reports the refs as diverged.
-- No changes were pushed to `main`.
-- The branch has not been rebased or force-pushed. Reconcile the two commits from main before proposing a merge.
-- The GitHub status/check endpoint returned no status entries for the latest commit during this update. CI is therefore unverified, not passed.
+- PR #3 (identity, tenancy and project RBAC) is **merged**.
+- Current main HEAD: baa09c6a18ce4322b5da15bb10e18d0f5b6dbb3b.
+- CI run #61 on that merge commit completed successfully (typecheck, tests and build).
+- Repository-readiness work is being prepared on feat/repository-readiness-v0.2.0-alpha.1; it is not part of main until its PR is reviewed and merged.
+- No production deployment or end-to-end product test is claimed.
 
-## Implemented on the feature branch
+## Implemented
 
-### Platform foundation
-- React/Vite dashboard shell, Express API shell, worker bootstrap, shared Zod contracts.
-- Docker Compose for local PostgreSQL and Redis.
-- CI workflow definition.
+### Repository foundation
+- pnpm/Turborepo workspace.
+- React/Vite dashboard shell, Express API shell and worker bootstrap.
+- Docker Compose with PostgreSQL and Redis services.
+- GitHub Actions CI for workspace typecheck, tests and build.
+- Shared Zod contracts and an OpenAI-compatible model provider abstraction.
 
-### Identity and tenancy foundation
-- PostgreSQL users, organizations, organization memberships, projects and sessions.
-- Registration creates user + organization + owner membership.
-- Scrypt password hashing with random salts.
-- Opaque session cookies; only SHA-256 token hashes are persisted.
-- Login, logout and current-user/organization-membership endpoints.
+### Identity and tenancy API
+- PostgreSQL tables/migrations for users, organizations, memberships, projects and sessions.
+- Registration creates a user, organization and owner membership in a transaction.
+- Scrypt password hashing with random per-password salts.
+- Opaque HttpOnly session cookie; only a SHA-256 token hash is persisted.
+- Login, logout and current-user/organization-membership routes.
 
-### Project management foundation
+### Project management API
 - Organization-scoped project list, create, read, update and archive endpoints.
-- Role policy: Owner/Admin/Member can create and update; Owner/Admin can archive; all active roles can read.
-- SQL operations bind organization, authenticated user, active membership and required role.
-- Archiving is soft state, not destructive deletion.
-- Unit tests cover password hashing and the project role-policy helpers.
+- Active organization membership required for access.
+- Owner/Admin/Member may create and update; Owner/Admin may archive.
+- Project archive is a soft state transition.
+- Unit tests cover password hashing and role-policy helpers.
 
-## Not yet proven
+## Current limitations / not yet proven
 
-- Latest CI run and full workspace typecheck/test/build.
-- PostgreSQL-backed integration tests for registration, login, project CRUD and cross-tenant denial.
-- Frontend signup/login/project screens wired to these APIs.
-- Organization invitations and membership administration.
-- Rate limiting, email verification, password reset, MFA, session rotation and full CSRF hardening.
-- Authenticated local worker enrollment, heartbeat, revocation and persisted echo job.
-- Product discovery, browser/API/realtime/load test engines.
+- pnpm-lock.yaml is absent; dependency resolution is not yet frozen/reproducible.
+- No PostgreSQL-backed integration tests for registration, login, CRUD, role enforcement or cross-tenant isolation.
+- Dashboard signup/login/project screens are not yet connected to the API.
+- Organization invitations, membership management and audit events are not implemented.
+- Rate limiting, password reset, email verification, MFA, session rotation and complete CSRF strategy are outstanding.
+- Worker is bootstrap-only; authenticated enrollment, heartbeat, revocation, job leases and execution are absent.
+- Browser discovery, API execution, realtime testing, k6 performance runs, accessibility/security engines and evidence reports are not implemented.
+- Model gateway is not yet connected to discovery/planning/triage workflows.
+- Production secrets management, structured observability, backup/restore drills, deployment hardening and operational runbooks are outstanding.
 
-## Required next actions
+## Version and maturity policy
 
-1. Reconcile the 2 commits present on main without losing feature-branch work.
-2. Run CI and add database-backed API integration tests using isolated test databases.
-3. Integrate dashboard signup/login and project selection/creation/list/detail.
-4. Complete organization membership administration and audit events.
-5. Implement secure local-worker enrollment and a persisted echo-job round trip.
+- 0.2.0-alpha.1 is a development baseline, not an MVP product release.
+- **Prototype** means the architecture and thin vertical slices can be exercised in controlled local environments.
+- **MVP** means a complete user journey works end-to-end on at least two unrelated authorized products, with reproducible evidence and tested tenant isolation.
+- **Production** requires security, reliability, observability, recovery, load and deployment exit criteria documented in [release readiness](RELEASE_READINESS.md).
+
+## Next milestone order
+
+1. Add a committed pnpm lockfile and use frozen installs.
+2. Add PostgreSQL-backed API integration tests, including cross-tenant denial and role enforcement.
+3. Connect dashboard signup/login and project list/create/detail to real APIs.
+4. Add typed environment validation and centralized structured logging.
+5. Implement authenticated worker enrollment, heartbeat, revocation and persisted job round trip.
+6. Implement target authorization/SSRF controls before connecting browser or load engines.
+7. Build discovery + browser/API deterministic execution with evidence artifacts.
+8. Add realtime/performance/security/accessibility engines and model-assisted planning only after deterministic execution boundaries exist.
 
 ## Completion policy
 
-A feature is not called complete because its files exist. Mark it tested only after the corresponding test executes and its output is recorded. Never claim a green CI run when GitHub reports no check result.
+A feature is complete only when implementation exists, the relevant automated test executes, its result is visible in CI, and documentation accurately describes its limits. Do not promote planned configuration into an implemented feature by adding environment variables alone.
