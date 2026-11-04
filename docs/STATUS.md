@@ -1,9 +1,9 @@
 # ORCA AI — Current Engineering Status
 
 Last verified: 2026-11-04  
-Current main baseline at v0.5 branch creation: 5a0f166ecffab37e430f92364d2b9a32dc638ae0  
-v0.5 branch: feat/secure-worker-enrollment-jobs-v0.5.0  
-Target package version: 0.5.0-alpha.1
+Current main baseline at v0.6 branch creation: 0742114b2b445c3178dcda59f65f1e96ed292baf  
+v0.6 branch: feat/secure-target-onboarding-v0.6.0  
+Target package version: 0.6.0-alpha.1
 
 ## GitHub state
 
@@ -11,8 +11,8 @@ Target package version: 0.5.0-alpha.1
 - PR #4 (repository readiness and CodeQL) is merged.
 - PR #5 (control-plane PostgreSQL integration verification) is merged.
 - PR #6 (dashboard and application integration v0.4.0-alpha.1) is merged.
-- The current v0.5 feature branch starts from the updated main after PR #6.
-- Main CI and CodeQL passed for the previous v0.4 milestone; this v0.5 branch still requires its own CI and CodeQL validation.
+- PR #7 (v0.5 secure worker enrollment/jobs) is merged to main at `0742114b2b445c3178dcda59f65f1e96ed292baf`.
+- The v0.6 feature branch starts from that merge commit. Main workflow runs #103/#104 and CodeQL #20 were reported queued when v0.6 work began; verify their eventual conclusions independently.
 - No production deployment or full autonomous QA engine is claimed.
 
 ## Implemented milestones
@@ -41,6 +41,24 @@ Target package version: 0.5.0-alpha.1
 - Playwright registration/project lifecycle/logout/login journey in CI.
 - CI run #82 and CodeQL run #10 passed on the v0.4 final branch head.
 
+## v0.6.0-alpha.1 — Secure target onboarding, authorization and SSRF controls
+
+Implemented on `feat/secure-target-onboarding-v0.6.0`, based on merged main commit `0742114b2b445c3178dcda59f65f1e96ed292baf`.
+
+- Added migration 0004 for project/organization-bound authorized targets, explicit authorization attestation, one-time DNS proof hashes, DNS address snapshots, 24-hour freshness and revocation.
+- Added owner/admin-only target create, list, DNS verify and revoke endpoints with route-level rate limiting.
+- Restricted target origins to HTTP/HTTPS on standard ports only, rejected IP literals and local/reserved hostname suffixes, and enforced strict path-prefix syntax.
+- Added DNS TXT proof at `_orca-verify.<hostname>`; raw challenge is returned once and only its SHA-256 digest is stored.
+- Added public A/AAAA resolution checks that reject the full answer set if any address is non-global, private, loopback, link-local, carrier-grade NAT, multicast, unspecified or reserved.
+- Added a DNS snapshot comparison guard for future workers. Every future connection must re-resolve, compare the full set and pin the validated IP; redirects must be revalidated hop by hop.
+- Added unit tests for URL/path normalization, public/private IPv4/IPv6 ranges, mixed DNS responses, answer-set limits, exact TXT proof and DNS rebinding.
+- Added PostgreSQL integration tests for authorization, role/tenant isolation, one-time proof hashing, target activation, target revocation, private/mixed DNS rejection and input bounds.
+- Added migration, API contract, security, worker protocol and operator documentation.
+
+### v0.6 scope limit
+
+The milestone creates the authorization boundary only. No target HTTP request, browser automation, API testing, redirect following, proxying or arbitrary worker network access is enabled. API responses explicitly include `executionEnabled: false`. DNS approvals expire after 24 hours; legal authorization expires within the configured one-to-ninety-day window.
+
 ## v0.5.0-alpha.1 — Secure worker enrollment and job execution
 
 Implemented on `feat/secure-worker-enrollment-jobs-v0.5.0`; source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed GitHub CI run #89 and CodeQL run #13.
@@ -67,7 +85,7 @@ The worker can execute only the deterministic `echo` job. It does not run shell 
 - v0.4 validation remains available in the merged PR #6 history: CI #82 and CodeQL #10 both passed.
 - v0.5 source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed all-workspace TypeScript typecheck, unit tests, PostgreSQL integration tests (including worker lifecycle cases), build and the existing Playwright browser journey in CI run #89: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675755
 - CodeQL run #13 passed: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675266
-- The worker rate-limit middleware has a unit test covering quota enforcement, structured HTTP 429 responses and standard rate-limit headers; the updated branch must rerun full CI and CodeQL before PR readiness.
+- The worker rate-limit middleware has unit coverage for quota enforcement; the v0.6 target security unit and PostgreSQL integration suites are added and require fresh CI/CodeQL evidence before PR readiness.
 - The editing environment can update GitHub through the connected repository integration but does not execute the project locally. Any successful validation will be attributed to the exact GitHub Actions commit/run.
 
 ## Remaining platform work
@@ -76,7 +94,7 @@ The worker can execute only the deterministic `echo` job. It does not run shell 
 - External API contract/authorization test engine.
 - WebSocket/Socket.IO target testing.
 - k6 load testing and performance evidence.
-- Secure target onboarding, authorization records, allowlists, SSRF/DNS/redirect protections and isolated workloads.
+- Actual target execution, per-connection DNS pinning in a worker transport, redirect-hop enforcement, sandbox isolation and local-target exception policy.
 - Queue scalability (Redis/BullMQ) beyond the current PostgreSQL queue.
 - Job cancellation, progress events, worker watchdogs and operator kill switch.
 - Evidence storage, redaction/retention, reports and review workflows.

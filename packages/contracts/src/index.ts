@@ -75,3 +75,23 @@ export const JobEnvelopeSchema = z.object({
   }),
 });
 export type JobEnvelope = z.infer<typeof JobEnvelopeSchema>;
+
+export const AuthorizedTargetStatusSchema = z.enum(["pending_verification", "active", "revoked"]);
+export type AuthorizedTargetStatus = z.infer<typeof AuthorizedTargetStatusSchema>;
+
+export const AuthorizedTargetSchema = z.object({
+  id: z.string().uuid(),
+  organization_id: z.string().uuid(),
+  project_id: z.string().uuid(),
+  scheme: z.enum(["http", "https"]),
+  hostname: z.string().min(1).max(240),
+  port: z.union([z.literal(80), z.literal(443)]),
+  path_prefixes: z.array(z.string()).min(1).max(50),
+  authorization_expires_at: z.string().datetime(),
+  status: AuthorizedTargetStatusSchema,
+  dns_verified_at: z.string().datetime().nullable(),
+  verification_expires_at: z.string().datetime().nullable(),
+  resolved_addresses: z.array(z.string()),
+  revoked_at: z.string().datetime().nullable(),
+});
+export type AuthorizedTarget = z.infer<typeof AuthorizedTargetSchema>;

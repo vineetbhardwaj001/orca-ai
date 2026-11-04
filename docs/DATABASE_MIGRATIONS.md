@@ -16,15 +16,24 @@ ORCA currently uses ordered PostgreSQL SQL files. A migration runner and migrati
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_lifecycle.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0003_secure_workers_and_jobs.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0004_secure_target_authorization.sql
 ~~~
 
-The files create identity/organization/session data, the project lifecycle state, then one-time worker enrollment tokens, organization-bound workers, persisted echo jobs and lease history. Migration 0003 also adds composite uniqueness and foreign keys so worker jobs, projects and workers must share the same organization.
+The files create identity/organization/session data, the project lifecycle state, worker enrollment/jobs/leases, and finally the organization/project-scoped authorized-target registry. Migration 0003 adds tenant-consistent worker/job constraints. Migration 0004 adds explicit authorization attestation, one-time DNS verification hashes, public DNS answer snapshots, 24-hour DNS freshness and target revocation state.
 
 The SQL uses `IF NOT EXISTS` guards for supported repeated object creation, but this is not a replacement for migration version tracking.
 
 ## Rollback notes
 
 Rollback is intentionally manual in this milestone. Review the target environment, obtain an approved backup/restore plan and confirm that data loss is acceptable before executing any rollback.
+
+### Roll back migration 0004
+
+This removes target authorization records, DNS verification state and revocation history. Stop any future target-aware workers first; do not roll this back while target-scoped execution is active.
+
+~~~sql
+DROP TABLE IF EXISTS authorized_targets;
+~~~
 
 ### Roll back migration 0003
 
@@ -56,7 +65,7 @@ This drops all identity and project data created by the initial schema. It is de
 DROP TABLE IF EXISTS auth_sessions, projects, organization_members, organizations, users CASCADE;
 ~~~
 
-Execute the 0003 rollback before 0002 and 0001. Never run either block just to reset a developer database when a clean disposable database is safer and clearer.
+Execute the 0004 rollback before 0003, then 0002 and 0001. Never run either block just to reset a developer database when a clean disposable database is safer and clearer.
 
 ## Test database isolation
 

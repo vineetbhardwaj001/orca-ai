@@ -15,7 +15,7 @@ const workerConfigSchema = z.object({
   credentialFile: z.string().min(1),
   pollIntervalMs: z.coerce.number().int().min(250).max(30_000).default(2_000),
   heartbeatIntervalMs: z.coerce.number().int().min(1_000).max(60_000).default(15_000),
-  version: z.string().min(1).max(40).default("0.5.0"),
+  version: z.string().min(1).max(40).default("0.6.0-alpha.1"),
   workerName: z.string().trim().min(2).max(80).default("orca-worker"),
 });
 
@@ -26,7 +26,7 @@ function loadConfig(environment: NodeJS.ProcessEnv = process.env) {
     credentialFile: environment.ORCA_WORKER_CREDENTIAL_FILE ?? join(homedir(), ".orca", "worker-credential.json"),
     pollIntervalMs: environment.WORKER_POLL_INTERVAL_MS ?? "2000",
     heartbeatIntervalMs: environment.WORKER_HEARTBEAT_INTERVAL_MS ?? "15000",
-    version: environment.WORKER_VERSION ?? "0.5.0",
+    version: environment.WORKER_VERSION ?? "0.6.0-alpha.1",
     workerName: environment.WORKER_NAME ?? "orca-worker",
   });
   if (!parsed.success) {

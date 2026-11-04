@@ -23,9 +23,15 @@ Enrollment tokens are one-use and expire after 15 minutes. Worker credentials ex
 
 PostgreSQL row locks with `SKIP LOCKED` select jobs atomically. A 60-second lease prevents concurrent completion; expired work is requeued up to three attempts. The current executable job type is only `echo`.
 
+## Authorized targets (v0.6)
+
+- `authorized_targets(id UUID PK, organization_id FK, project_id composite FK, scheme, hostname, port, path_prefixes TEXT[], authorization_confirmed_by FK, authorization_confirmed_at, authorization_expires_at, verification_token_hash, status, dns_verified_at, verification_expires_at, resolved_addresses JSONB, revoked_at, created_by FK, created_at, updated_at)`
+
+Targets are restricted to an exact HTTP(S) origin on ports 80/443 and up to fifty explicit path prefixes. Owner/admin attestation is time-bounded to at most ninety days. DNS control is a one-time TXT proof; only its SHA-256 hash is stored. Activation requires every A/AAAA answer to be globally routable. The recorded public address set is fresh for 24 hours; future network execution must re-resolve and pin the same approved address set before connecting. v0.6 performs no target HTTP requests or browser/API execution.
+
 ## Future project discovery and execution
 - connectors(id UUID PK, project_id FK, type, encrypted_config_reference, status, created_at, updated_at)
-- targets(id UUID PK, project_id FK, connector_id FK, target_type, base_url, authorization_state, allowlist JSONB, environment, created_at)
+- target discoveries, page profiles and test runs remain future entities; the implemented `authorized_targets` registry is described above.
 - product_profiles(id UUID PK, project_id FK, version, status, profile_json JSONB, discovered_at, UNIQUE project_id/version)
 - discovered_pages(id UUID PK, profile_id FK, normalized_url, title, page_type, discovery_method, confidence, evidence_id FK nullable)
 - discovered_features(id UUID PK, profile_id FK, feature_key, name, category, confidence, verification_state, evidence_id FK nullable)
@@ -45,7 +51,7 @@ PostgreSQL row locks with `SKIP LOCKED` select jobs atomically. A 60-second leas
 
 ## Integrity and privacy
 
-- Worker, job, project and lease rows include organization-consistency constraints.
+- Worker, job, project, lease and authorized-target rows include organization-consistency constraints.
 - The worker queue has unique organization-scoped idempotency keys.
 - Only hashes of enrollment, worker and lease credentials are persisted.
 - The worker cannot add capabilities through heartbeat.

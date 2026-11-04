@@ -144,3 +144,18 @@ For a packaged run, build with `pnpm worker:build` and start with `pnpm worker:s
 ## Future protocol work
 
 The existing shared job-envelope type documents future run/target scope and execution limits. v0.5 does not yet dispatch that broader envelope. Before enabling browser, API, repository or load engines, add target allowlist enforcement, DNS/redirect protections, sandbox isolation, runtime resource limits, cancellation, evidence validation, per-capability security review and an operator kill switch.
+
+
+## Authorized targets and execution boundary (v0.6)
+
+v0.6 adds a separate organization/project target registry. It does not change the v0.5 worker job protocol and it does not dispatch target jobs.
+
+An active organization owner/admin registers a project target using `POST /api/v1/organizations/:organizationId/targets`. The request requires the project ID, exact HTTP(S) origin, explicit path prefixes, `authorizationConfirmed: true`, and an authorization expiry no more than ninety days away. Only standard web ports are accepted: HTTPS/443 or HTTP/80.
+
+The API returns a one-time DNS TXT challenge. Publish the returned value at the supplied `_orca-verify.<hostname>` record name. Then call `POST /api/v1/organizations/:organizationId/targets/:targetId/verify`. ORCA verifies the exact TXT value, resolves the full A/AAAA address set and rejects the target if any answer is private, loopback, link-local, carrier-grade NAT, multicast, unspecified or reserved. The database stores only the challenge hash and stores the observed public IP set with a 24-hour verification freshness window.
+
+Owners/admins can list targets with `GET /api/v1/organizations/:organizationId/targets` and revoke a pending or active target with `POST /api/v1/organizations/:organizationId/targets/:targetId/revoke`.
+
+A future network executor must check that authorization has not expired, that DNS verification is still fresh, re-resolve the full address set, compare it with the approved snapshot and pin the approved IP for the socket connection. It must not resolve once and then connect by hostname. Automatic redirects must be disabled or each hop must be revalidated against the full target scope and DNS policy.
+
+**Execution remains disabled in v0.6.** The onboarding API only records authorization and verifies DNS. No website is crawled, no API is called, no browser is launched and no arbitrary outbound connection is made by this milestone.

@@ -2,6 +2,20 @@
 
 All notable repository changes are recorded here. Versions remain pre-release until explicitly tagged from main.
 
+## 0.6.0-alpha.1 — 2026-11-04 (secure target onboarding and SSRF boundary)
+
+- Added migration 0004 for project/organization-scoped authorized target records, authorization attestation, DNS challenge hashes, public DNS snapshots, 24-hour verification freshness and revocation.
+- Added owner/admin target create, list, DNS verification and revoke APIs with per-route rate limits.
+- Required explicit authorization confirmation and expiry between one hour and ninety days.
+- Restricted origins to HTTP(S) ports 80/443 and strict path prefixes; rejected IP literals, local/reserved hostnames, URL credentials, query/fragment and non-origin URL paths.
+- Added one-time DNS TXT ownership proof; only the SHA-256 challenge hash is stored.
+- Resolved A/AAAA records and rejected all answers unless every address was globally routable, including blocks for private, loopback, link-local, carrier-grade NAT, multicast and reserved ranges.
+- Stored the public DNS answer set with a 24-hour freshness window and added a DNS rebinding comparison guard for future worker transports.
+- Added unit and PostgreSQL integration tests for authorization, tenant/RBAC, URL/path policy, TXT proof, private/mixed DNS, DNS changes, answer limits and revocation.
+- Updated security, API, database migration/schema, worker protocol, status and operator docs.
+
+Scope: v0.6 establishes target authorization only. It does not send target HTTP requests, follow redirects, start browsers, test APIs or enable arbitrary worker network access. Target execution remains disabled until per-connection DNS pinning, redirect-hop enforcement and worker isolation are implemented and separately reviewed.
+
 ## 0.5.0-alpha.1 — 2026-11-04 (secure worker enrollment and job execution)
 
 - Added migration 0003 for one-time worker enrollment hashes, organization-bound worker identities, persisted echo jobs and lease history.
