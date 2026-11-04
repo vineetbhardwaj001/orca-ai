@@ -6,11 +6,18 @@ import pg from "pg";
 import type { Server } from "node:http";
 import { createApp } from "./app.js";
 import { closePool } from "./db.js";
+import type { TargetDnsResolver } from "./targets/security.js";
 
 const { Pool } = pg;
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const requireDbIntegration = process.env.REQUIRE_DB_INTEGRATION === "true";
 const testOrigin = "http://localhost:5173";
+let targetDnsAnswers = [{ address: "8.8.8.8", family: 4 }];
+let targetTxtRecords: string[][] = [];
+const targetDnsResolver: TargetDnsResolver = {
+  lookup: async () => targetDnsAnswers,
+  resolveTxt: async () => targetTxtRecords,
+};
 
 if (requireDbIntegration && !testDatabaseUrl) {
   throw new Error("REQUIRE_DB_INTEGRATION=true but TEST_DATABASE_URL is missing; refusing to silently skip the PostgreSQL integration suite.");
@@ -144,12 +151,13 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
       new URL("../migrations/0001_identity_tenancy.sql", import.meta.url),
       new URL("../migrations/0002_project_lifecycle.sql", import.meta.url),
       new URL("../migrations/0003_secure_workers_and_jobs.sql", import.meta.url),
+      new URL("../migrations/0004_secure_target_authorization.sql", import.meta.url),
     ];
     for (const migration of migrations) {
       await getTestPool().query(await readFile(migration, "utf8"));
     }
 
-    server = createApp().listen(0, "127.0.0.1");
+    server = createApp({ targetDnsResolver }).listen(0, "127.0.0.1");
     await once(server, "listening");
     const address = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${address.port}`;
@@ -255,6 +263,177 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
     expect(adminArchive.status).toBe(200);
     expect((await adminArchive.json() as ApiPayload).data?.project?.status).toBe("archived");
   });
+
+  it("requires explicit owner authorization and DNS proof before activating a project target", async () => {
+    const owner = await register("target-owner@example.test");
+    const projectId = await createProject(owner, "Authorized Target Project");
+    const authorizationExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const created = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId,
+        baseUrl: "https://QA-Target.example.com",
+        pathPrefixes: ["/", "/api/v1"],
+        authorizationConfirmed: true,
+        authorizationExpiresAt,
+      }),
+    }, owner.cookie);
+    const createdPayload = await created.json() as ApiPayload;
+    expect(created.status).toBe(201);
+    expect(createdPayload.data?.target).toEqual(expect.objectContaining({
+      status: "pending_verification",
+      hostname: "qa-target.example.com",
+    }));
+    expect(createdPayload.data?.executionEnabled).toBe(false);
+    const targetId = createdPayload.data!.target!.id;
+    const dnsProof = createdPayload.data!.dnsVerification!;
+    expect(dnsProof.recordName).toBe("_orca-verify.qa-target.example.com");
+    expect(dnsProof.recordType).toBe("TXT");
+    expect(dnsProof.recordValue).toMatch(/^orca-verification=[A-Za-z0-9_-]{43}$/);
+
+    const stored = await getTestPool().query<{ verification_token_hash: string; status: string }>(
+      "SELECT verification_token_hash, status FROM authorized_targets WHERE id = $1",
+      [targetId],
+    );
+    expect(stored.rows[0]?.verification_token_hash).toHaveLength(64);
+    expect(stored.rows[0]?.verification_token_hash).not.toBe(dnsProof.recordValue);
+    expect(stored.rows[0]?.status).toBe("pending_verification");
+
+    const duplicate = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId,
+        baseUrl: "https://qa-target.example.com",
+        pathPrefixes: ["/"],
+        authorizationConfirmed: true,
+        authorizationExpiresAt,
+      }),
+    }, owner.cookie);
+    expect(duplicate.status).toBe(409);
+
+    targetTxtRecords = [[dnsProof.recordValue.slice(0, 25), dnsProof.recordValue.slice(25)]];
+    const verified = await api(`/api/v1/organizations/${owner.organizationId}/targets/${targetId}/verify`, {
+      method: "POST",
+    }, owner.cookie);
+    const verifiedPayload = await verified.json() as ApiPayload;
+    expect(verified.status).toBe(200);
+    expect(verifiedPayload.data?.target?.status).toBe("active");
+    expect(verifiedPayload.data?.executionEnabled).toBe(false);
+
+    const savedResolution = await getTestPool().query<{ resolved_addresses: string[]; verification_expires_at: Date }>(
+      "SELECT resolved_addresses, verification_expires_at FROM authorized_targets WHERE id = $1",
+      [targetId],
+    );
+    expect(savedResolution.rows[0]?.resolved_addresses).toEqual(["8.8.8.8"]);
+    expect(new Date(savedResolution.rows[0]!.verification_expires_at).getTime()).toBeGreaterThan(Date.now());
+
+    const list = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {}, owner.cookie);
+    const listPayload = await list.json() as ApiPayload;
+    expect(list.status).toBe(200);
+    expect(listPayload.data?.targets).toHaveLength(1);
+    expect(listPayload.data?.targets?.[0]?.status).toBe("active");
+
+    const revoked = await api(`/api/v1/organizations/${owner.organizationId}/targets/${targetId}/revoke`, {
+      method: "POST",
+    }, owner.cookie);
+    expect(revoked.status).toBe(200);
+    const revokedState = await getTestPool().query<{ status: string; revoked_at: Date | null }>(
+      "SELECT status, revoked_at FROM authorized_targets WHERE id = $1",
+      [targetId],
+    );
+    expect(revokedState.rows[0]).toEqual({ status: "revoked", revoked_at: expect.any(Date) });
+  });
+
+  it("denies non-admin target onboarding and rejects missing authorization attestation", async () => {
+    const owner = await register("target-rbac-owner@example.test");
+    const projectId = await createProject(owner, "Target RBAC Project");
+    const viewer = await register("target-rbac-viewer@example.test");
+    await addMembership(viewer.userId, owner.organizationId, "viewer");
+    const input = {
+      projectId,
+      baseUrl: "https://rbac-target.example.com",
+      pathPrefixes: ["/"],
+      authorizationConfirmed: true,
+      authorizationExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    const forbidden = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST", body: JSON.stringify(input),
+    }, viewer.cookie);
+    expect(forbidden.status).toBe(403);
+
+    const missingAttestation = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST", body: JSON.stringify({ ...input, authorizationConfirmed: false }),
+    }, owner.cookie);
+    expect(missingAttestation.status).toBe(400);
+
+    const crossTenant = await register("target-rbac-other@example.test");
+    const otherTenantList = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {}, crossTenant.cookie);
+    expect(otherTenantList.status).toBe(403);
+  });
+
+  it("blocks private and mixed public/private DNS answers during target verification", async () => {
+    const owner = await register("target-ssrf-owner@example.test");
+    const projectId = await createProject(owner, "Target SSRF Project");
+    const created = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST",
+      body: JSON.stringify({
+        projectId,
+        baseUrl: "https://ssrf-target.example.com",
+        pathPrefixes: ["/api"],
+        authorizationConfirmed: true,
+        authorizationExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      }),
+    }, owner.cookie);
+    const createdPayload = await created.json() as ApiPayload;
+    expect(created.status).toBe(201);
+    const targetId = createdPayload.data!.target!.id;
+    targetTxtRecords = [[createdPayload.data!.dnsVerification!.recordValue]];
+
+    targetDnsAnswers = [
+      { address: "8.8.8.8", family: 4 },
+      { address: "127.0.0.1", family: 4 },
+    ];
+    const blocked = await api(`/api/v1/organizations/${owner.organizationId}/targets/${targetId}/verify`, {
+      method: "POST",
+    }, owner.cookie);
+    const blockedPayload = await blocked.json() as ApiPayload;
+    expect(blocked.status).toBe(422);
+    expect(blockedPayload.error?.code).toBe("TARGET_DNS_NOT_PUBLIC");
+
+    const unchanged = await getTestPool().query<{ status: string; dns_verified_at: Date | null }>(
+      "SELECT status, dns_verified_at FROM authorized_targets WHERE id = $1",
+      [targetId],
+    );
+    expect(unchanged.rows[0]).toEqual({ status: "pending_verification", dns_verified_at: null });
+  });
+
+  it("rejects expired authorization windows and non-web ports before creating target records", async () => {
+    const owner = await register("target-invalid-owner@example.test");
+    const projectId = await createProject(owner, "Invalid Target Project");
+    const baseInput = {
+      projectId,
+      pathPrefixes: ["/"],
+      authorizationConfirmed: true,
+      authorizationExpiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+    const expired = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST",
+      body: JSON.stringify({ ...baseInput, baseUrl: "https://expiry-target.example.com", authorizationExpiresAt: new Date(Date.now() + 91 * 24 * 60 * 60 * 1000).toISOString() }),
+    }, owner.cookie);
+    expect(expired.status).toBe(400);
+
+    const nonWebPort = await api(`/api/v1/organizations/${owner.organizationId}/targets`, {
+      method: "POST",
+      body: JSON.stringify({ ...baseInput, baseUrl: "https://port-target.example.com:8443" }),
+    }, owner.cookie);
+    expect(nonWebPort.status).toBe(400);
+
+    const count = await getTestPool().query<{ count: string }>("SELECT count(*)::text AS count FROM authorized_targets");
+    expect(count.rows[0]?.count).toBe("0");
+  });
+
   it("issues a one-time enrollment token and stores only worker credential hashes", async () => {
     const owner = await register("worker-enrollment-owner@example.test");
     const token = await createWorkerEnrollment(owner);
