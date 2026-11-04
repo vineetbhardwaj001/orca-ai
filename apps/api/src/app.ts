@@ -44,7 +44,7 @@ export function createApp(options: { targetDnsResolver?: TargetDnsResolver } = {
   app.get("/health", (_req, res) => res.status(200).json(getHealthPayload()));
   app.get("/api/v1", (_req, res) => res.status(200).json({
     success: true,
-    data: { name: "ORCA API", version: "v1", stage: "secure-worker-enrollment" },
+    data: { name: "ORCA API", version: "v1", stage: "secure-target-authorization" },
   }));
   app.use("/api/v1/auth", authRouter);
   app.use("/api/v1/worker-enrollments", workerEnrollmentRouter);
