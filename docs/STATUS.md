@@ -1,58 +1,84 @@
 # ORCA AI — Current Engineering Status
 
 Last verified: 2026-11-04  
-Repository version: 0.3.0-alpha.1 (proposed on the current feature branch; not a tagged release)  
+Repository version: 0.3.0-alpha.1 (pre-release; no stable tag created)  
 Default branch: main
 
 ## GitHub state at audit time
 
-- PR #4 (repository README, license, environment profiles and GitHub workflow readiness) is merged.
-- Current main HEAD at phase start: ea781a52320d26341328079bb347619416e6c6ca.
-- CI run #65 and CodeQL run #2 on the PR #4 merge commit completed successfully.
-- Control-plane verification work is being prepared on feat/control-plane-verification-v0.3.0-alpha.1; it is not part of main until its PR is reviewed and merged.
+- PR #3 (identity, tenancy and project RBAC) is merged.
+- PR #4 (repository documentation, license, environment templates and GitHub workflow readiness) is merged.
+- PR #5 (control-plane verification) is open as a draft and has not been merged.
+- Current main HEAD: ea781a52320d26341328079bb347619416e6c6ca.
+- PR #5 head: fe0bd3a37a317badfd7fcc7e3c54307e1db48b4e; branch is 2 commits ahead and 0 behind main.
+- PR #5 CI run #69 completed successfully: install, typecheck, unit + PostgreSQL integration tests, and build.
+- PR #5 CodeQL run #3 completed successfully.
 - Main branch protection is not enabled yet.
-- No production deployment or full product execution is claimed.
+- No production deployment or full ORCA product execution is claimed.
 
-## Implemented before this phase
+## Implemented and merged before this phase
 
+### v0.1.0 — Identity and project-management foundation (PR #3)
 - pnpm/Turborepo monorepo, React/Vite dashboard shell, Express API shell and worker bootstrap.
 - Docker Compose development services for PostgreSQL and Redis.
-- GitHub Actions CI and CodeQL.
-- Zod contracts and an OpenAI-compatible model provider abstraction.
+- GitHub Actions CI and shared Zod contracts/model gateway abstraction.
 - PostgreSQL identity/organization/session schema and project lifecycle migration.
 - Registration, login, logout and current-user/organization-membership routes.
 - Scrypt password hashing and opaque HttpOnly session cookies with hashed server-side token storage.
 - Organization-scoped project list/create/read/update/archive endpoints.
 - Server-side active membership and role checks.
+- Unit tests for password hashing and RBAC helper functions.
 
-## Added in 0.3.0-alpha.1 branch
+### v0.2.0-alpha.1 — Repository readiness (PR #4)
+- Professional README and API inventory.
+- MIT license, contributor/security guidance and PR template.
+- MVP, prototype and production environment templates.
+- Repository structure, scalability and code-quality guidance.
+- CI workflow hardening, CodeQL analysis and release-readiness documentation.
+- Aligned root and workspace package versions.
+
+## Implemented and verified in v0.3.0-alpha.1 branch (PR #5)
 
 - Extracted Express app construction into createApp() so tests can start an isolated ephemeral HTTP server without binding the production API port.
-- Added graceful SIGTERM/SIGINT shutdown and PostgreSQL pool close in the server entry point.
-- Added PostgreSQL integration suite against a disposable database named orca_test.
-- Added tests for registration + owner membership, case-insensitive duplicate email, invalid login, logout revocation, cross-tenant list/read/update/archive protection and viewer/member/admin project permissions.
-- Updated CI to provision PostgreSQL 16, wait for health, and run integration tests together with unit tests.
-- Passed TEST_DATABASE_URL through the Turbo test task environment so integration tests execute under the monorepo runner.
-- Added local test environment template and documented safe integration test setup.
-- Bumped root and workspace package metadata to 0.3.0-alpha.1.
+- Added graceful SIGTERM/SIGINT shutdown and PostgreSQL pool cleanup in the server entry point.
+- Hardened registration's database connection acquisition and transaction cleanup.
+- Added PostgreSQL 16 integration tests using a disposable database named orca_test.
+- Tests cover registration and owner membership, case-insensitive duplicate email, invalid login, authentication requirement, logout/session revocation, cross-tenant list/read/update/archive denial, and viewer/member/admin project permissions.
+- Added a test database name guard and REQUIRE_DB_INTEGRATION fail-fast switch to avoid silently skipping database tests in CI.
+- Updated CI to provision PostgreSQL 16, wait for service health, and run unit + DB integration tests.
+- Configured Turbo to pass the integration-test environment variables to test tasks.
+- Added a dedicated test environment template and updated README/environment/test-coverage docs.
+- Aligned root and workspace package versions to 0.3.0-alpha.1.
 
-## Validation status
+## Validation evidence
 
-- This branch's CI and CodeQL are pending until GitHub Actions completes.
-- Integration tests are authored but must not be called passing until the PostgreSQL workflow job completes.
-- pnpm-lock.yaml is still absent; CI still uses --no-frozen-lockfile.
-- Direct container clone/network access was unavailable during this run, so local test execution could not be performed here.
+- PR #5 CI run #69: **success** — install, TypeScript typecheck, unit + PostgreSQL integration tests, build.
+- PR #5 CodeQL run #3: **success**.
+- PostgreSQL integration tests executed in the GitHub Actions PostgreSQL 16 service; they were not run locally in this environment.
+- No production deployment, live website test, worker execution or 100+ VU test is claimed.
 
-## Not yet implemented / next
+## Remaining engineering gaps
 
-1. Commit and validate a pnpm lockfile; switch CI to frozen installs.
-2. Typed environment validation and structured logging with credential redaction.
-3. Dashboard signup/login and project list/create/detail connected to the real API.
-4. Password reset, email verification, rate limits, session rotation, CSRF hardening, org invitations and audit events.
-5. Authenticated worker enrollment, heartbeat, revocation, job leases and a persisted echo-job round trip.
-6. Explicit target allowlist and SSRF/DNS/redirect protections.
-7. Browser discovery and deterministic browser/API execution with evidence storage.
-8. Realtime/performance/accessibility/security engines and model-assisted planning.
+- pnpm-lock.yaml is absent; CI still uses --no-frozen-lockfile.
+- Typed runtime environment validation and centralized structured logging/credential redaction are not implemented.
+- Dashboard signup/login/project screens are not connected to real APIs.
+- Password reset, email verification, rate limits, MFA, session rotation, complete CSRF hardening, org invitations and audit events are outstanding.
+- Worker remains bootstrap-only: enrollment, heartbeat, revocation, job leases and execution are absent.
+- Explicit target authorization, allowlists, SSRF/DNS/redirect protections and workload isolation are outstanding.
+- Browser discovery, deterministic browser/API execution, realtime/performance/accessibility/security engines, evidence capture and reports are not implemented.
+- Model gateway is not connected to discovery/planning/triage workflows.
+- Main branch protection is not enabled.
+
+## Next phase — v0.4.0-alpha.1: Dashboard and application configuration
+
+1. Commit a reviewed pnpm lockfile and switch CI/local setup to frozen installs.
+2. Add typed Zod-based environment parsing for the API and fail fast on invalid production configuration.
+3. Add structured request logging with request IDs and redaction for cookies, passwords, tokens and authorization headers.
+4. Implement a typed dashboard API client with credentials, consistent errors, cancellation and runtime response validation.
+5. Build signup, login, logout and current-session restoration against the existing API.
+6. Build organization selection and project list/create/detail/update/archive screens using real endpoints and role-aware UI.
+7. Add dashboard API contract tests and Playwright end-to-end journeys with PostgreSQL-backed CI.
+8. Add migration and rollback documentation before expanding the domain model.
 
 ## Maturity policy
 
