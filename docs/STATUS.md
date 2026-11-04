@@ -52,6 +52,7 @@ Implemented on `feat/secure-worker-enrollment-jobs-v0.5.0`; source commit `291a2
 - Added PostgreSQL row-lock/skip-locked job claim, 60-second per-job lease, three-attempt expiry recovery and persisted lease history.
 - Added lease-token-protected result completion. The control plane verifies the active lease, worker identity, result schema and exact echo-vs-input match.
 - Added immediate worker revocation. Active leases are revoked and jobs are requeued while retry attempts remain.
+- Added route-level per-IP rate limits to all nine worker endpoints, with tighter budgets for enrollment and privileged mutations and higher budgets for worker heartbeat/polling. Responses include standard rate-limit headers and a structured HTTP 429 error.
 - Replaced the worker bootstrap with a small HTTP worker client, protected local credential file and deterministic echo-job executor.
 - Added unit tests for token primitives, credential-file protections and echo-job validation; PostgreSQL tests also cover early enrollment-token revocation and owner/admin policy.
 - Extended PostgreSQL integration tests for one-use enrollment, hashed credential storage, heartbeat, echo round-trip, idempotency, organization isolation, capability filtering, expired/reassigned leases and revocation.
@@ -66,7 +67,7 @@ The worker can execute only the deterministic `echo` job. It does not run shell 
 - v0.4 validation remains available in the merged PR #6 history: CI #82 and CodeQL #10 both passed.
 - v0.5 source commit `291a23737bff6a47f286410b87f15372ed2bffbc` passed all-workspace TypeScript typecheck, unit tests, PostgreSQL integration tests (including worker lifecycle cases), build and the existing Playwright browser journey in CI run #89: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675755
 - CodeQL run #13 passed: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41858675266
-- A final documentation-only commit records this evidence and is rerun through CI/CodeQL before PR readiness.
+- The worker rate-limit middleware has a unit test covering quota enforcement, structured HTTP 429 responses and standard rate-limit headers; the updated branch must rerun full CI and CodeQL before PR readiness.
 - The editing environment can update GitHub through the connected repository integration but does not execute the project locally. Any successful validation will be attributed to the exact GitHub Actions commit/run.
 
 ## Remaining platform work
@@ -79,7 +80,7 @@ The worker can execute only the deterministic `echo` job. It does not run shell 
 - Queue scalability (Redis/BullMQ) beyond the current PostgreSQL queue.
 - Job cancellation, progress events, worker watchdogs and operator kill switch.
 - Evidence storage, redaction/retention, reports and review workflows.
-- Password reset, email verification, rate limits, MFA, organization invitations and audit events.
+- Password reset, email verification, broader rate limits for authentication/project APIs, MFA, organization invitations and audit events.
 - Production deployment, operational monitoring, backups and recovery validation.
 - `pnpm-lock.yaml` is still absent; CI continues to use `pnpm install --no-frozen-lockfile` until a real lockfile is generated and reviewed.
 
