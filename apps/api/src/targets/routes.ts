@@ -206,7 +206,8 @@ export function createTargetRouter(resolver: TargetDnsResolver = systemTargetDns
                 verification_expires_at, resolved_addresses, revoked_at, created_at
            FROM authorized_targets
           WHERE organization_id = $1
-          ORDER BY created_at DESC`,
+          ORDER BY created_at DESC
+          LIMIT 200`,
         [organization.data],
       );
       return res.status(200).json({ success: true, data: { targets: result.rows, executionEnabled: false } });
