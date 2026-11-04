@@ -2,6 +2,22 @@
 
 All notable repository changes are recorded here. Versions remain pre-release until explicitly tagged from main.
 
+## 0.5.0-alpha.1 — 2026-11-04 (secure worker enrollment and job execution)
+
+- Added migration 0003 for one-time worker enrollment hashes, organization-bound worker identities, persisted echo jobs and lease history.
+- Added owner/admin APIs to issue and revoke unclaimed enrollment tokens, list/revoke workers and enqueue idempotent echo jobs.
+- Added one-use 15-minute enrollment and 30-day worker credentials. Only SHA-256 token hashes are stored.
+- Added bearer-authenticated worker heartbeats and server-authorized capability binding.
+- Added organization-scoped, capability-filtered job claims using PostgreSQL row locking and SKIP LOCKED.
+- Added 60-second leases, three-attempt recovery for expired leases, lease history and lease-token-protected completion.
+- Added immediate worker credential revocation and active-lease invalidation/requeue behavior.
+- Replaced the worker bootstrap with an HTTP worker client, protected local credential file and deterministic echo-job executor.
+- Added unit tests for token and credential-file safety and worker echo validation.
+- Extended PostgreSQL integration tests for enrollment, credential hashing, early enrollment-token revocation, heartbeat, end-to-end echo execution, idempotency, tenant isolation, capability restrictions, lease recovery and worker revocation.
+- Updated worker protocol, database schema, migration/rollback, security, environment and operator setup documentation.
+
+Validation is pending for the v0.5 feature branch. Scope is limited to the echo job; no shell, arbitrary script, browser, external target API, repository or load execution is enabled. The v0.5 package version is 0.5.0-alpha.1. The pnpm lockfile remains outstanding, and CI retains non-frozen dependency installation until a genuine reviewed lockfile is available.
+
 ## 0.4.0-alpha.1 — 2026-11-04 (dashboard and application integration)
 
 - Added Zod-validated API runtime configuration with fail-fast startup for missing or invalid database/origin/port/pool settings; production requires HTTPS and verified database TLS.
@@ -16,7 +32,7 @@ All notable repository changes are recorded here. Versions remain pre-release un
 - Fixed the archive response DTO to return all fields expected by the shared project contract.
 - Corrected the engineering status record for merged PR #5 and added migration/rollback guidance.
 
-Validation: feature-branch CI run #81 passed installation, all-workspace typecheck, unit + PostgreSQL integration tests, build and the Playwright browser journey. CodeQL run #9 passed. Links: https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874267 and https://github.com/vineetbhardwaj001/orca-ai/actions/runs/41853874430.
+Validation: PR #6 feature-branch CI run #82 passed installation, all-workspace typecheck, unit + PostgreSQL integration tests, build and the Playwright browser journey. CodeQL run #10 passed. PR #6 has since merged to main.
 
 The pnpm lockfile remains outstanding because no trustworthy generated lockfile was available in the editing environment; installs therefore remain non-frozen. This milestone does not implement browser/API/realtime/load execution engines, worker enrollment or production readiness.
 
@@ -31,7 +47,7 @@ The pnpm lockfile remains outstanding because no trustworthy generated lockfile 
 - Added a disposable test database environment template and local test instructions.
 - Aligned root and workspace package metadata to 0.3.0-alpha.1.
 
-Validation: PR #5 CI run #71 passed install, typecheck, unit + PostgreSQL integration tests and build. CodeQL run #4 passed. These checks validate this repository commit; they do not establish production readiness or prove the not-yet-implemented ORCA product test engines.
+Validation: PR #5 CI run #71 passed install, typecheck, unit + PostgreSQL integration tests and build. CodeQL run #4 passed.
 
 ## 0.2.0-alpha.1 — 2026-11-04 (repository-readiness milestone)
 

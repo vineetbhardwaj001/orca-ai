@@ -36,6 +36,15 @@ type ApiPayload = {
     organizations?: Array<{ organization_id: string; role: string }>;
     projects?: Array<{ id: string; name: string; status: string }>;
     project?: { id: string; name: string; status: string };
+    enrollment?: { id: string };
+    enrollmentToken?: string;
+    credential?: string;
+    worker?: { id: string; organizationId: string; capabilities: string[] };
+    workers?: Array<{ id: string; capabilities: string[]; revoked_at: string | null }>;
+    job?: {
+      id?: string; jobId?: string; status?: string; payload?: { message: string };
+      attempt?: number; lease?: { id: string; token: string; expiresAt: string };
+    } | null;
   };
   error?: { code: string; message: string };
 };
@@ -82,6 +91,43 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
     }
     return payload.data.project.id;
   }
+ 
+  async function createWorkerEnrollment(user: UserSession, capabilities = ["worker.echo"]): Promise<string> {
+    const response = await api(`/api/v1/organizations/${user.organizationId}/workers/enrollment-tokens`, {
+      method: "POST",
+      body: JSON.stringify({ capabilities }),
+    }, user.cookie);
+    const payload = await response.json() as ApiPayload;
+    if (response.status !== 201 || !payload.data?.enrollmentToken) {
+      throw new Error(`Worker enrollment token creation failed with HTTP ${response.status}`);
+    }
+    return payload.data.enrollmentToken;
+  }
+
+  async function enrollWorker(token: string, workerName = "Integration worker"): Promise<{ id: string; credential: string }> {
+    const response = await api("/api/v1/worker-enrollments/claim", {
+      method: "POST",
+      body: JSON.stringify({ token, workerName }),
+    });
+    const payload = await response.json() as ApiPayload;
+    if (response.status !== 201 || !payload.data?.worker?.id || !payload.data.credential) {
+      throw new Error(`Worker enrollment claim failed with HTTP ${response.status}`);
+    }
+    return { id: payload.data.worker.id, credential: payload.data.credential };
+  }
+
+  function workerHeaders(credential: string, leaseToken?: string): Headers {
+    const headers = new Headers({ authorization: "Bearer " + credential });
+    if (leaseToken) headers.set("x-orca-lease-token", leaseToken);
+    return headers;
+  }
+
+  async function createEchoJob(user: UserSession, projectId: string, idempotencyKey = "echo-test-key-0001") {
+    return api(`/api/v1/organizations/${user.organizationId}/jobs/echo`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, message: "hello from ORCA worker", idempotencyKey }),
+    }, user.cookie);
+  }
 
   async function addMembership(userId: string, organizationId: string, role: "admin" | "member" | "viewer") {
     await getTestPool().query(
@@ -97,6 +143,7 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
     const migrations = [
       new URL("../migrations/0001_identity_tenancy.sql", import.meta.url),
       new URL("../migrations/0002_project_lifecycle.sql", import.meta.url),
+      new URL("../migrations/0003_secure_workers_and_jobs.sql", import.meta.url),
     ];
     for (const migration of migrations) {
       await getTestPool().query(await readFile(migration, "utf8"));
@@ -109,7 +156,7 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
   });
 
   beforeEach(async () => {
-    await getTestPool().query("TRUNCATE auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
+    await getTestPool().query("TRUNCATE worker_job_leases, worker_jobs, workers, worker_enrollment_tokens, auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
   });
 
   afterAll(async () => {
@@ -208,4 +255,239 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
     expect(adminArchive.status).toBe(200);
     expect((await adminArchive.json() as ApiPayload).data?.project?.status).toBe("archived");
   });
+  it("issues a one-time enrollment token and stores only worker credential hashes", async () => {
+    const owner = await register("worker-enrollment-owner@example.test");
+    const token = await createWorkerEnrollment(owner);
+    expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
+
+    const enrolled = await enrollWorker(token, "Local echo worker");
+    expect(enrolled.credential).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(enrolled.id).toMatch(/^[0-9a-f-]{36}$/);
+
+    const duplicate = await api("/api/v1/worker-enrollments/claim", {
+      method: "POST",
+      body: JSON.stringify({ token, workerName: "Duplicate worker" }),
+    });
+    expect(duplicate.status).toBe(401);
+
+    const stored = await getTestPool().query<{ credential_hash: string }>(
+      "SELECT credential_hash FROM workers WHERE id = $1",
+      [enrolled.id],
+    );
+    expect(stored.rows[0]?.credential_hash).toHaveLength(64);
+    expect(stored.rows[0]?.credential_hash).not.toBe(enrolled.credential);
+  });
+
+  it("lets an organization owner revoke an unclaimed enrollment token before expiry", async () => {
+    const owner = await register("worker-token-revoke-owner@example.test");
+    const issued = await api(`/api/v1/organizations/${owner.organizationId}/workers/enrollment-tokens`, {
+      method: "POST",
+      body: JSON.stringify({ capabilities: ["worker.echo"] }),
+    }, owner.cookie);
+    const issuedPayload = await issued.json() as ApiPayload;
+    const tokenId = issuedPayload.data?.enrollment?.id;
+    const token = issuedPayload.data?.enrollmentToken;
+    expect(issued.status).toBe(201);
+    expect(tokenId).toBeDefined();
+    expect(token).toBeDefined();
+
+    const revoked = await api(`/api/v1/organizations/${owner.organizationId}/workers/enrollment-tokens/${tokenId}/revoke`, {
+      method: "POST", body: "{}",
+    }, owner.cookie);
+    expect(revoked.status).toBe(200);
+
+    const claim = await api("/api/v1/worker-enrollments/claim", {
+      method: "POST",
+      body: JSON.stringify({ token, workerName: "Should not enroll" }),
+    });
+    expect(claim.status).toBe(401);
+  });
+
+  it("runs a persisted echo job through authenticated heartbeat, lease and result completion", async () => {
+    const owner = await register("worker-echo-owner@example.test");
+    const projectId = await createProject(owner, "Worker Echo Project");
+    const enrollmentToken = await createWorkerEnrollment(owner);
+    const worker = await enrollWorker(enrollmentToken, "Echo executor");
+
+    const noCredential = await api(`/api/v1/workers/${worker.id}/heartbeat`, {
+      method: "POST", body: JSON.stringify({ status: "IDLE" }),
+    });
+    expect(noCredential.status).toBe(401);
+
+    const heartbeat = await api(`/api/v1/workers/${worker.id}/heartbeat`, {
+      method: "POST",
+      headers: workerHeaders(worker.credential),
+      body: JSON.stringify({ status: "IDLE", version: "0.5.0", capabilities: ["api.http"] }),
+    });
+    expect(heartbeat.status).toBe(200);
+    const unchangedCapabilities = await getTestPool().query<{ capabilities: string[] }>(
+      "SELECT capabilities FROM workers WHERE id = $1",
+      [worker.id],
+    );
+    expect(unchangedCapabilities.rows[0]?.capabilities).toEqual(["worker.echo"]);
+
+    const queued = await createEchoJob(owner, projectId, "echo-idempotency-key-0001");
+    expect(queued.status).toBe(202);
+    const duplicate = await createEchoJob(owner, projectId, "echo-idempotency-key-0001");
+    expect(duplicate.status).toBe(409);
+
+    const claimResponse = await api(`/api/v1/workers/${worker.id}/jobs/claim`, {
+      method: "POST", headers: workerHeaders(worker.credential), body: "{}",
+    });
+    const claimPayload = await claimResponse.json() as ApiPayload;
+    expect(claimResponse.status).toBe(200);
+    expect(claimPayload.data?.job?.payload?.message).toBe("hello from ORCA worker");
+    expect(claimPayload.data?.job?.attempt).toBe(1);
+    const job = claimPayload.data!.job!;
+    const jobId = job.jobId!;
+    const leaseToken = job.lease!.token;
+
+    const wrongResult = await api(`/api/v1/workers/${worker.id}/jobs/${jobId}/complete`, {
+      method: "POST",
+      headers: workerHeaders(worker.credential, leaseToken),
+      body: JSON.stringify({
+        echo: "tampered",
+        workerId: worker.id,
+        processedAt: "2026-11-04T15:00:00.000Z",
+      }),
+    });
+    expect(wrongResult.status).toBe(422);
+
+    const completed = await api(`/api/v1/workers/${worker.id}/jobs/${jobId}/complete`, {
+      method: "POST",
+      headers: workerHeaders(worker.credential, leaseToken),
+      body: JSON.stringify({
+        echo: "hello from ORCA worker",
+        workerId: worker.id,
+        processedAt: "2026-11-04T15:00:01.000Z",
+      }),
+    });
+    expect(completed.status).toBe(200);
+
+    const persisted = await getTestPool().query<{ status: string; result: { echo: string } }>(
+      "SELECT status, result FROM worker_jobs WHERE id = $1",
+      [jobId],
+    );
+    expect(persisted.rows[0]).toEqual({
+      status: "succeeded",
+      result: expect.objectContaining({ echo: "hello from ORCA worker", workerId: worker.id }),
+    });
+
+    const lease = await getTestPool().query<{ status: string }>(
+      "SELECT status FROM worker_job_leases WHERE job_id = $1",
+      [jobId],
+    );
+    expect(lease.rows[0]?.status).toBe("completed");
+  });
+
+  it("does not dispatch jobs across organizations or to workers missing the required capability", async () => {
+    const ownerA = await register("worker-scope-a@example.test");
+    const projectA = await createProject(ownerA, "Organization A Worker Project");
+    const queued = await createEchoJob(ownerA, projectA, "echo-scope-test-key-0001");
+    expect(queued.status).toBe(202);
+
+    const ownerB = await register("worker-scope-b@example.test");
+    const workerB = await enrollWorker(await createWorkerEnrollment(ownerB), "Other organization worker");
+    const foreignClaim = await api(`/api/v1/workers/${workerB.id}/jobs/claim`, {
+      method: "POST", headers: workerHeaders(workerB.credential), body: "{}",
+    });
+    expect((await foreignClaim.json() as ApiPayload).data?.job).toBeNull();
+
+    const limitedWorker = await enrollWorker(
+      await createWorkerEnrollment(ownerA, ["api.http"]),
+      "Capability-limited worker",
+    );
+    const capabilityClaim = await api(`/api/v1/workers/${limitedWorker.id}/jobs/claim`, {
+      method: "POST", headers: workerHeaders(limitedWorker.credential), body: "{}",
+    });
+    expect((await capabilityClaim.json() as ApiPayload).data?.job).toBeNull();
+    const stillQueued = await getTestPool().query<{ status: string }>(
+      "SELECT status FROM worker_jobs WHERE id = (SELECT id FROM worker_jobs WHERE idempotency_key = $1)",
+      ["echo-scope-test-key-0001"],
+    );
+    expect(stillQueued.rows[0]?.status).toBe("queued");
+  });
+
+  it("expires old leases, bounds retries and makes a revoked worker credential unusable", async () => {
+    const owner = await register("worker-lease-owner@example.test");
+    const projectId = await createProject(owner, "Lease Retry Project");
+    const first = await enrollWorker(await createWorkerEnrollment(owner), "First worker");
+    const second = await enrollWorker(await createWorkerEnrollment(owner), "Second worker");
+    const created = await createEchoJob(owner, projectId, "echo-lease-retry-key-0001");
+    const queued = await created.json() as ApiPayload;
+    const jobId = queued.data!.job!.id!;
+
+    const firstClaimResponse = await api(`/api/v1/workers/${first.id}/jobs/claim`, {
+      method: "POST", headers: workerHeaders(first.credential), body: "{}",
+    });
+    const firstClaim = await firstClaimResponse.json() as ApiPayload;
+    const firstLease = firstClaim.data!.job!.lease!.token;
+
+    await getTestPool().query(
+      "UPDATE worker_jobs SET lease_expires_at = now() - interval '1 second' WHERE id = $1",
+      [jobId],
+    );
+    const secondClaimResponse = await api(`/api/v1/workers/${second.id}/jobs/claim`, {
+      method: "POST", headers: workerHeaders(second.credential), body: "{}",
+    });
+    const secondClaim = await secondClaimResponse.json() as ApiPayload;
+    expect(secondClaim.data?.job?.attempt).toBe(2);
+
+    const oldLeaseCompletion = await api(`/api/v1/workers/${first.id}/jobs/${jobId}/complete`, {
+      method: "POST",
+      headers: workerHeaders(first.credential, firstLease),
+      body: JSON.stringify({
+        echo: "hello from ORCA worker",
+        workerId: first.id,
+        processedAt: "2026-11-04T15:00:02.000Z",
+      }),
+    });
+    expect(oldLeaseCompletion.status).toBe(409);
+
+    const revoked = await api(`/api/v1/organizations/${owner.organizationId}/workers/${second.id}/revoke`, {
+      method: "POST", body: "{}",
+    }, owner.cookie);
+    expect(revoked.status).toBe(200);
+    const revokedHeartbeat = await api(`/api/v1/workers/${second.id}/heartbeat`, {
+      method: "POST",
+      headers: workerHeaders(second.credential),
+      body: JSON.stringify({ status: "IDLE" }),
+    });
+    expect(revokedHeartbeat.status).toBe(401);
+
+    const leaseStatuses = await getTestPool().query<{ status: string }>(
+      "SELECT status FROM worker_job_leases WHERE worker_id = $1 ORDER BY claimed_at",
+      [second.id],
+    );
+    expect(leaseStatuses.rows[0]?.status).toBe("revoked");
+  });
+
+  it("restricts worker enrollment and echo-job creation to organization owners and admins", async () => {
+    const owner = await register("worker-rbac-owner@example.test");
+    const projectId = await createProject(owner, "Worker RBAC Project");
+    const viewer = await register("worker-rbac-viewer@example.test");
+    await addMembership(viewer.userId, owner.organizationId, "viewer");
+
+    const forbiddenEnrollment = await api(`/api/v1/organizations/${owner.organizationId}/workers/enrollment-tokens`, {
+      method: "POST", body: JSON.stringify({ capabilities: ["worker.echo"] }),
+    }, viewer.cookie);
+    expect(forbiddenEnrollment.status).toBe(403);
+
+    const forbiddenJob = await api(`/api/v1/organizations/${owner.organizationId}/jobs/echo`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, message: "not allowed", idempotencyKey: "viewer-job-key-000001" }),
+    }, viewer.cookie);
+    expect(forbiddenJob.status).toBe(403);
+
+    const admin = await register("worker-rbac-admin@example.test");
+    await addMembership(admin.userId, owner.organizationId, "admin");
+    expect((await api(`/api/v1/organizations/${owner.organizationId}/workers/enrollment-tokens`, {
+      method: "POST", body: JSON.stringify({ capabilities: ["worker.echo"] }),
+    }, admin.cookie)).status).toBe(201);
+    expect((await api(`/api/v1/organizations/${owner.organizationId}/jobs/echo`, {
+      method: "POST",
+      body: JSON.stringify({ projectId, message: "admin job", idempotencyKey: "admin-job-key-000001" }),
+    }, admin.cookie)).status).toBe(202);
+  });
+
 });

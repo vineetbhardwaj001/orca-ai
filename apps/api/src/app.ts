@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { getHealthPayload } from "./health.js";
 import { authRouter } from "./auth/routes.js";
 import { projectsRouter } from "./projects/routes.js";
+import { workerAdminRouter, workerEnrollmentRouter, workerProtocolRouter } from "./workers/routes.js";
 import { requestLoggingMiddleware } from "./request-logging.js";
 
 export function createApp() {
@@ -41,9 +42,12 @@ export function createApp() {
   app.get("/health", (_req, res) => res.status(200).json(getHealthPayload()));
   app.get("/api/v1", (_req, res) => res.status(200).json({
     success: true,
-    data: { name: "ORCA API", version: "v1", stage: "dashboard-integration" },
+    data: { name: "ORCA API", version: "v1", stage: "secure-worker-enrollment" },
   }));
   app.use("/api/v1/auth", authRouter);
+  app.use("/api/v1/worker-enrollments", workerEnrollmentRouter);
+  app.use("/api/v1/workers", workerProtocolRouter);
+  app.use("/api/v1/organizations", workerAdminRouter);
   app.use("/api/v1/organizations", projectsRouter);
   app.use((error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const requestId = typeof res.locals.requestId === "string" ? res.locals.requestId : undefined;

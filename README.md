@@ -5,8 +5,8 @@
 *Universal Autonomous QA Lab*
 
 [![ORCA CI](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/vineetbhardwaj001/orca-ai/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.4.0--alpha.1-orange)](CHANGELOG.md)
-[![Stage](https://img.shields.io/badge/stage-dashboard--integration-blue)](docs/STATUS.md)
+[![Version](https://img.shields.io/badge/version-0.5.0--alpha.1-orange)](CHANGELOG.md)
+[![Stage](https://img.shields.io/badge/stage-worker--control-plane-blue)](docs/STATUS.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Test software like real users. Verify outcomes like an engineer.**
@@ -14,7 +14,7 @@
 
 ORCA is being built as a universal quality-assurance platform for authorized websites, web applications, APIs, real-time systems and source-code repositories. It combines deterministic test engines with AI-assisted discovery, planning, exploration, bug investigation and evidence review.
 
-> **Stage: dashboard and control-plane integration.** The API now has PostgreSQL-backed identity, sessions, organizations and project lifecycle endpoints. The React dashboard in this milestone connects signup, login, session restoration, organization context and project CRUD to those real endpoints. Browser/API/realtime/load execution, secure worker enrollment and production operations remain under development.
+> **Stage: secure worker control plane.** v0.5 adds one-time organization-authorized worker enrollment, hashed 30-day worker credentials, heartbeat, capability-gated PostgreSQL job claims, 60-second leases, revocation and persisted result acceptance. The only executable job is a bounded `echo` round trip; browser/API/realtime/load engines and production operations remain under development.
 
 ## Project status
 
@@ -26,10 +26,11 @@ ORCA is being built as a universal quality-assurance platform for authorized web
 | Project management | Real list, create, read, update and archive flows |
 | API configuration | Zod validation; server fails fast on invalid/missing database configuration |
 | API observability | Request IDs and structured metadata-only request logs |
-| PostgreSQL migrations | Initial identity and project lifecycle schema |
+| PostgreSQL migrations | Identity, project lifecycle, worker enrollment, job and lease schema |
 | Automated verification | Unit tests, PostgreSQL integration tests and Playwright dashboard journey in CI |
 | Model gateway | Provider abstraction; not wired into product workflows |
-| Worker | Bootstrap only; execution disabled |
+| Worker control plane | One-time enrollment, bearer auth, heartbeat, revocation and job leases |
+| Worker execution | Deterministic `worker.echo` job only; no shell or target execution |
 | Browser/API/realtime/performance engines | Planned; not implemented |
 | Production operations and hardening | Not ready |
 
@@ -55,8 +56,8 @@ ORCA follows a **modular-monolith control plane with separately deployable execu
 | Dashboard | React 18, Vite 6, TypeScript, SCSS | Authentication and project operations UI |
 | API | Node.js 22+, Express 4, TypeScript | Identity, tenancy and control plane |
 | Contracts | Zod | Runtime validation and shared DTOs |
-| Persistence | PostgreSQL 16 | Users, organizations, memberships, projects and sessions |
-| Queue (planned) | Redis 7, BullMQ | Job dispatch, retries and worker coordination |
+| Persistence | PostgreSQL 16 | Users, organizations, memberships, projects, workers, jobs and leases |
+| Job queue (current) | PostgreSQL 16 row locks and persisted job rows | Atomic v0.5 echo-job dispatch and lease recovery; Redis/BullMQ remain planned for scale |
 | Realtime (planned) | Socket.IO | Authenticated run progress and worker events |
 | Browser engine (planned) | Playwright | Discovery and real browser workflows |
 | Performance engine (planned) | k6 | Controlled concurrent load |
@@ -72,7 +73,7 @@ orca-ai/
 ├── apps/
 │   ├── api/                 # Express API, configuration, migrations and DB tests
 │   ├── dashboard/           # React + Vite + SCSS, API client and Playwright journey
-│   └── worker/              # Worker bootstrap (execution not enabled)
+│   └── worker/              # Enrolled worker client; v0.5 echo executor only
 ├── packages/
 │   ├── contracts/           # Shared Zod schemas
 │   └── model-gateway/       # Provider-neutral model interface
@@ -106,6 +107,7 @@ Apply migrations and start the workspace:
 ~~~bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0001_identity_tenancy.sql
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0002_project_lifecycle.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f apps/api/migrations/0003_secure_workers_and_jobs.sql
 pnpm dev
 ~~~
 
@@ -113,7 +115,7 @@ Open the dashboard at http://localhost:5173. In development, Vite proxies /api a
 
 **Lockfile note:** pnpm-lock.yaml is not yet committed, so dependency installation still uses --no-frozen-lockfile. A reviewed lockfile is still required before switching CI to frozen installs.
 
-The worker currently prints bootstrap status and exits; it does not execute tests or accept jobs.
+The v0.5 worker connects to the API using a local credential file, reports heartbeats and can claim/complete only the bounded `echo` job. See [worker protocol and setup](docs/WORKER_PROTOCOL.md).
 
 ## Testing
 
@@ -123,7 +125,7 @@ Unit tests and the PostgreSQL-backed API integration suite:
 pnpm test
 ~~~
 
-The integration suite requires a disposable database named orca_test. It refuses destructive setup against any other database name and CI fails rather than silently skipping it.
+The integration suite requires a disposable database named `orca_test`. It applies all three migrations and refuses destructive setup against any other database name; CI fails rather than silently skipping it.
 
 ~~~bash
 # Example disposable local database; never point this at development or production data.
@@ -159,8 +161,39 @@ Base prefix: /api/v1
 | GET | /organizations/:organizationId/projects/:projectId | Read project |
 | PATCH | /organizations/:organizationId/projects/:projectId | Update project |
 | POST | /organizations/:organizationId/projects/:projectId/archive | Soft-archive project |
+| POST | /organizations/:organizationId/workers/enrollment-tokens | Owner/admin issues a one-time enrollment token |
+| POST | /organizations/:organizationId/workers/enrollment-tokens/:tokenId/revoke | Owner/admin revokes an unclaimed enrollment token |
+| GET | /organizations/:organizationId/workers | Owner/admin lists organization workers |
+| POST | /organizations/:organizationId/workers/:workerId/revoke | Owner/admin revokes a worker |
+| POST | /organizations/:organizationId/jobs/echo | Owner/admin queues a persisted echo job |
+| POST | /worker-enrollments/claim | Worker consumes a one-use enrollment token |
+| POST | /workers/:workerId/heartbeat | Authenticated worker heartbeat |
+| POST | /workers/:workerId/jobs/claim | Capability-gated job claim with a lease |
+| POST | /workers/:workerId/jobs/:jobId/complete | Complete a job using the active lease token |
 
 Authentication uses scrypt password hashing and opaque HttpOnly session cookies; only a SHA-256 token hash is stored in the database. Project queries enforce active organization membership and role checks server-side. The dashboard uses the same endpoints; UI visibility is not a substitute for API authorization. See [identity/auth](docs/IDENTITY_AUTH.md) and [project RBAC](docs/PROJECTS_RBAC.md).
+
+## Worker setup (v0.5)
+
+An organization owner/admin creates a 15-minute one-use token with the `worker.echo` capability. Give that token only to the intended worker. Example owner/admin API request:
+
+~~~bash
+curl -X POST "$ORCA_API_BASE_URL/api/v1/organizations/$ORGANIZATION_ID/workers/enrollment-tokens" \
+  -H "Cookie: $ORCA_SESSION_COOKIE" \
+  -H "Origin: $WEB_BASE_URL" \
+  -H "Content-Type: application/json" \
+  -d '{"capabilities":["worker.echo"]}'
+~~~
+
+On the worker host, set `ORCA_API_BASE_URL` and `ORCA_ENROLLMENT_TOKEN` in the worker process environment, then run:
+
+~~~bash
+pnpm worker:dev
+~~~
+
+The first run consumes the token and writes a worker credential file (POSIX directory mode 0700 / file mode 0600). Remove `ORCA_ENROLLMENT_TOKEN` from the environment afterwards. Subsequent restarts use `ORCA_WORKER_CREDENTIAL_FILE` (default `~/.orca/worker-credential.json`). On Windows, restrict the worker profile directory using NTFS ACLs. Build and run the worker with `pnpm worker:build` and `pnpm worker:start`.
+
+Only the persisted echo job is executable in v0.5. The worker is not a remote shell and cannot yet test arbitrary URLs, APIs, repositories or browsers. See [worker protocol](docs/WORKER_PROTOCOL.md).
 
 ## Environment profiles
 
@@ -169,7 +202,7 @@ Authentication uses scrypt password hashing and opaque HttpOnly session cookies;
 - **Test:** env/.env.test.example — disposable PostgreSQL integration database.
 - **Production:** env/.env.production.example — placeholders and target settings only; not production approval.
 
-Queue, worker enrollment, evidence storage and hosted model settings are reserved for future milestones and are not consumed by the current app. Read [environment configuration](docs/ENVIRONMENT_CONFIGURATION.md).
+Evidence storage and hosted model settings are reserved for future milestones. Worker environment variables and credential-file handling are documented in [environment configuration](docs/ENVIRONMENT_CONFIGURATION.md).
 
 ## Development workflow
 

@@ -91,3 +91,22 @@ Authenticated project/run-scoped Socket.IO events:
 Never return secrets or internal stack traces to clients. Add pagination, request IDs, idempotency where required, and consistent validation to all applicable endpoints.
 
 This is the initial contract. Keep OpenAPI documentation synchronized with the implemented routes; do not expose routes that do not exist.
+
+
+## Worker control-plane API (v0.5)
+
+All worker-management routes are under `/api/v1`. Owner/admin-only management routes require the existing authenticated ORCA session cookie. Worker-to-control-plane routes require `Authorization: Bearer <worker-credential>`; completion also requires `X-ORCA-Lease-Token`.
+
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| POST | `/organizations/:organizationId/workers/enrollment-tokens` | Owner/admin session | Issue a one-use 15-minute enrollment token and authorize its capability set |
+| POST | `/organizations/:organizationId/workers/enrollment-tokens/:tokenId/revoke` | Owner/admin session | Revoke an unclaimed one-time enrollment token |
+| GET | `/organizations/:organizationId/workers` | Owner/admin session | List workers without exposing credential hashes |
+| POST | `/organizations/:organizationId/workers/:workerId/revoke` | Owner/admin session | Revoke credential, revoke active leases and requeue eligible jobs |
+| POST | `/organizations/:organizationId/jobs/echo` | Owner/admin session | Queue an active-project echo job with an organization-scoped idempotency key |
+| POST | `/worker-enrollments/claim` | One-use enrollment token | Consume token and receive a 30-day worker credential once |
+| POST | `/workers/:workerId/heartbeat` | Worker bearer credential | Update worker status/version/last heartbeat; cannot change capabilities |
+| POST | `/workers/:workerId/jobs/claim` | Worker bearer credential | Claim a capability-matched job and receive a 60-second lease |
+| POST | `/workers/:workerId/jobs/:jobId/complete` | Worker + active lease tokens | Validate and persist the echo result |
+
+v0.5 executes only `worker.echo`. It does not offer shell execution, arbitrary scripts, browser automation or external target testing. See [worker protocol](WORKER_PROTOCOL.md) for payloads, lifecycle, lease recovery and setup instructions.
