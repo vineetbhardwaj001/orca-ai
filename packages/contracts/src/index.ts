@@ -84,7 +84,7 @@ export const AuthorizedTargetSchema = z.object({
   organization_id: z.string().uuid(),
   project_id: z.string().uuid(),
   scheme: z.enum(["http", "https"]),
-  hostname: z.string().min(1).max(253),
+  hostname: z.string().min(1).max(240),
   port: z.union([z.literal(80), z.literal(443)]),
   path_prefixes: z.array(z.string()).min(1).max(50),
   authorization_expires_at: z.string().datetime(),
