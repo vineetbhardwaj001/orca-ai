@@ -7,14 +7,18 @@
 | Password hashing | scrypt hash/verify unit tests | Implemented |
 | Project RBAC policy | Role helper unit tests | Implemented |
 | API health | Health payload unit test | Implemented |
+| Target URL/path policy | Origin normalization, scheme/port/credential checks, local/IP rejection and strict path-prefix checks | v0.6 unit tests |
+| SSRF address policy | IPv4/IPv6 classification, mixed DNS answer rejection and DNS answer-count bounds | v0.6 unit tests |
+| DNS ownership / rebinding | Exact TXT proof, split TXT record handling and changed address-set rejection | v0.6 unit tests |
+| Target onboarding API | Owner/admin authorization, tenant scope, challenge hashing, activation, revocation and private-DNS rejection | v0.6 PostgreSQL integration tests |
 | Registration | PostgreSQL integration test: user, organization and owner membership | Added in v0.3 branch; CI pending |
 | Duplicate account | Case-insensitive duplicate email returns conflict | Added in v0.3 branch; CI pending |
 | Login | Invalid credentials return unauthorized | Added in v0.3 branch; CI pending |
 | Session | Unauthenticated request and logout revocation | Added in v0.3 branch; CI pending |
 | Tenant boundaries | Cross-tenant list/read/update/archive isolation | Added in v0.3 branch; CI pending |
 | Project roles | Viewer/member/admin permission matrix with real PostgreSQL | Added in v0.3 branch; CI pending |
-| Dashboard E2E | Signup/login/project screens through browser | Not implemented |
-| Worker E2E | Enroll/heartbeat/lease/execute/revoke | Not implemented |
+| Dashboard E2E | Signup/login/project lifecycle/logout/login through Playwright | Implemented in CI |
+| Worker protocol | Enrollment, heartbeat, echo-job lease/completion, retry, tenant isolation and revoke in PostgreSQL integration tests | Implemented; deterministic echo only |
 
 ## Future ORCA product test catalogue
 
