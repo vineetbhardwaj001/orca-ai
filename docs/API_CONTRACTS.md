@@ -29,7 +29,6 @@ All endpoints use authenticated organization/project authorization where applica
 ## Connectors and targets
 - POST /projects/:projectId/connectors
 - GET /projects/:projectId/connectors
-- POST /projects/:projectId/targets/validate
 
 ## Discovery
 - POST /projects/:projectId/discoveries
