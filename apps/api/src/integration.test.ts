@@ -48,6 +48,10 @@ type ApiPayload = {
     credential?: string;
     worker?: { id: string; organizationId: string; capabilities: string[] };
     workers?: Array<{ id: string; capabilities: string[]; revoked_at: string | null }>;
+    target?: { id: string; status: string; hostname: string };
+    dnsVerification?: { recordName: string; recordType: string; recordValue: string };
+    targets?: Array<{ id: string; status: string; hostname: string }>;
+    executionEnabled?: boolean;
     job?: {
       id?: string; jobId?: string; status?: string; payload?: { message: string };
       attempt?: number; lease?: { id: string; token: string; expiresAt: string };
@@ -164,7 +168,9 @@ describe.skipIf(!testDatabaseUrl)("PostgreSQL-backed API integration", () => {
   });
 
   beforeEach(async () => {
-    await getTestPool().query("TRUNCATE worker_job_leases, worker_jobs, workers, worker_enrollment_tokens, auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
+    targetDnsAnswers = [{ address: "8.8.8.8", family: 4 }];
+    targetTxtRecords = [];
+    await getTestPool().query("TRUNCATE authorized_targets, worker_job_leases, worker_jobs, workers, worker_enrollment_tokens, auth_sessions, projects, organization_members, organizations, users RESTART IDENTITY CASCADE");
   });
 
   afterAll(async () => {
